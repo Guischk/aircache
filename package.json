@@ -1,8 +1,8 @@
 {
-  "name": "airtable-cacher",
-  "version": "1.0.0",
+  "name": "aircache",
+  "version": "0.1.0",
   "description": "High-performance Airtable cache service with REST API and dual-namespace Redis strategy",
-  "author": "Your Name",
+  "author": "Guischk",
   "license": "MIT",
   "keywords": ["airtable", "cache", "redis", "api", "bun", "typescript"],
   "main": "dist/index.js",

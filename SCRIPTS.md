@@ -1,4 +1,4 @@
-# 🚀 Scripts Guide - Airtable Cacher
+# 🚀 Scripts Guide - Aircache
 
 Guide des scripts npm disponibles dans le projet.
 

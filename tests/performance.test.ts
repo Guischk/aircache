@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 /**
- * Benchmark de performances pour l'API Airtable Cacher
+ * Benchmark de performances pour l'API Aircache
  */
 
 const API_BASE = "http://localhost:3000";

@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
 
 /**
- * Démonstration rapide du système Airtable Cacher
+ * Démonstration rapide du système Aircache
  */
 
 const API_BASE = "http://localhost:3000";
 const BEARER_TOKEN = process.env.BEARER_TOKEN || "demo-token";
 
-console.log("🎯 Démonstration Airtable Cacher");
+console.log("🎯 Démonstration Aircache");
 console.log("================================");
 
 // Test de connectivité

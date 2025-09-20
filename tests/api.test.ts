@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 /**
- * Suite de tests complète pour l'API Airtable Cacher
+ * Suite de tests complète pour l'API Aircache
  */
 
 import { test, expect, describe, beforeAll, afterAll } from "bun:test";
@@ -41,7 +41,7 @@ async function apiRequest(endpoint: string, options: {
   };
 }
 
-describe("Airtable Cacher API Tests", () => {
+describe("Aircache API Tests", () => {
 
   describe("Health Check (No Auth)", () => {
     test("should return healthy status", async () => {

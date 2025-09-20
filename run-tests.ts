@@ -7,7 +7,7 @@
 import { spawn } from "bun";
 import { runIntegrationTests } from "./tests/integration.test";
 
-console.log("🚀 Airtable Cacher - Test Suite");
+console.log("🚀 Aircache - Test Suite");
 console.log("===============================");
 
 // Vérifier les variables d'environnement

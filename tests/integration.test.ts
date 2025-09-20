@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 /**
- * Tests d'intégration pour le système complet Airtable Cacher
+ * Tests d'intégration pour le système complet Aircache
  */
 
 import { redisService } from "../src/lib/redis/index";

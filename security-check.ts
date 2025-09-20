@@ -83,7 +83,7 @@ async function checkFile(filePath: string): Promise<SecurityIssue[]> {
 }
 
 async function runSecurityCheck(): Promise<void> {
-  console.log("🔒 Security Check - Airtable Cacher");
+  console.log("🔒 Security Check - Aircache");
   console.log("===================================");
 
   const allIssues: SecurityIssue[] = [];

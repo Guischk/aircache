@@ -2,10 +2,10 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "name": "airtable-cacher",
+      "name": "aircache",
       "dependencies": {
         "airtable": "^0.12.2",
-        "airtable-types-gen": "^0.3.1",
+        "airtable-types-gen": "^0.4.0",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -28,7 +28,7 @@
 
     "airtable": ["airtable@0.12.2", "", { "dependencies": { "@types/node": ">=8.0.0 <15", "abort-controller": "^3.0.0", "abortcontroller-polyfill": "^1.4.0", "lodash": "^4.17.21", "node-fetch": "^2.6.7" } }, "sha512-HS3VytUBTKj8A0vPl7DDr5p/w3IOGv6RXL0fv7eczOWAtj9Xe8ri4TAiZRXoOyo+Z/COADCj+oARFenbxhmkIg=="],
 
-    "airtable-types-gen": ["airtable-types-gen@0.3.1", "", { "dependencies": { "airtable": "^0.12.2", "dotenv": "^16.4.5", "zod": "^3.23.8" }, "bin": { "airtable-types-gen": "bin/airtable-types-gen" } }, "sha512-sq3seP4VHMwiQYlZ6L3kjuKBGSSxzSFVV5zIMqVZ3MQ8buu9T+MNH3DvLBren6nBmHAdh4E03SeAMA2i55VC7Q=="],
+    "airtable-types-gen": ["airtable-types-gen@0.4.0", "", { "dependencies": { "airtable": "^0.12.2", "dotenv": "^16.4.5", "zod": "^3.23.8" }, "bin": { "airtable-types-gen": "bin/airtable-types-gen" } }, "sha512-0TSWRefaBgOhaXfBseLnqONWR0wemSVm7xAbyTlCsvVMweyqMgHFBg811NIEtF5nSrPH5/QqHru//EnJP3YXFg=="],
 
     "bun-types": ["bun-types@1.2.22", "", { "dependencies": { "@types/node": "*" }, "peerDependencies": { "@types/react": "^19" } }, "sha512-hwaAu8tct/Zn6Zft4U9BsZcXkYomzpHJX28ofvx7k0Zz2HNz54n1n+tDgxoWFGB4PcFvJXJQloPhaV2eP3Q6EA=="],
 

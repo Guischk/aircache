@@ -3,7 +3,7 @@ import { startApiServer } from "./src/api/index";
 const refreshInterval = parseInt(process.env.REFRESH_INTERVAL || "5400");
 const apiPort = parseInt(process.env.PORT || "3000");
 
-console.log("🚀 Démarrage du service Airtable Cacher");
+console.log("🚀 Démarrage du service Aircache");
 
 // 1. Démarrage du serveur API
 await startApiServer(apiPort);
