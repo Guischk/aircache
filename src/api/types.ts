@@ -124,3 +124,44 @@ export interface ApiHeaders {
   "Access-Control-Allow-Methods"?: string;
   "Access-Control-Allow-Headers"?: string;
 }
+
+/**
+ * Résultat d'un test de benchmark individuel
+ */
+export interface BenchmarkResult {
+  endpoint: string;
+  name: string;
+  requests: number;
+  successCount: number;
+  errorCount: number;
+  avgResponseTime: number; // en millisecondes
+  minResponseTime: number; // en millisecondes
+  maxResponseTime: number; // en millisecondes
+  p95ResponseTime: number; // en millisecondes
+  requestsPerSecond: number;
+  errors: string[]; // Liste des erreurs rencontrées
+}
+
+/**
+ * Configuration du benchmark
+ */
+export interface BenchmarkConfig {
+  requests: number;
+  concurrent: number;
+  tableName: string;
+  timestamp: string;
+}
+
+/**
+ * Réponse complète du benchmark
+ */
+export interface BenchmarkResponse {
+  type: string; // Type de benchmark (performance, load, stress)
+  totalTime: number; // Temps total en millisecondes
+  totalRequests: number;
+  totalSuccess: number;
+  totalErrors: number;
+  successRate: number; // Pourcentage de succès
+  results: BenchmarkResult[];
+  config: BenchmarkConfig;
+}

@@ -14,7 +14,9 @@ import type {
   TablesListResponse,
   TableRecordsResponse,
   RecordResponse,
-  QueryParams
+  QueryParams,
+  BenchmarkResponse,
+  BenchmarkResult
 } from "./types";
 
 /**
@@ -367,6 +369,189 @@ export async function handleStats(request: Request): Promise<Response> {
       "STATS_FETCH_FAILED"
     );
   }
+}
+
+/**
+ * Benchmark de performance pour la production
+ */
+export async function handleBenchmark(request: Request): Promise<Response> {
+  // Vérification auth
+  const authError = requireAuth(request);
+  if (authError) {
+    logAuthAttempt(request, false);
+    return authError;
+  }
+
+  logAuthAttempt(request, true);
+
+  try {
+    const url = new URL(request.url);
+    const benchmarkType = url.searchParams.get("type") || "performance";
+    const requests = parseInt(url.searchParams.get("requests") || "100");
+    const concurrent = parseInt(url.searchParams.get("concurrent") || "10");
+    const tableName = url.searchParams.get("table") || AIRTABLE_TABLE_NAMES[0];
+
+    console.log(`🏁 Starting benchmark: ${benchmarkType} (${requests} requests, ${concurrent} concurrent)`);
+
+    const startTime = Date.now();
+    const results: BenchmarkResult[] = [];
+
+    // Benchmark des endpoints disponibles
+    const endpoints = [
+      { path: "/health", auth: false, name: "Health Check" },
+      { path: "/api/tables", auth: true, name: "Tables List" },
+      { path: "/api/stats", auth: true, name: "Cache Stats" },
+      { path: `/api/tables/${encodeURIComponent(tableName)}`, auth: true, name: `Table Records (${tableName})` }
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        const result = await runBenchmarkTest(endpoint.path, {
+          requests: Math.min(requests, endpoint.auth ? 50 : 200), // Limiter selon l'endpoint
+          concurrent: Math.min(concurrent, endpoint.auth ? 5 : 20),
+          withAuth: endpoint.auth
+        });
+        
+        results.push({
+          endpoint: endpoint.path,
+          name: endpoint.name,
+          ...result
+        });
+
+        // Pause entre les tests pour éviter la surcharge
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (error) {
+        console.error(`❌ Benchmark failed for ${endpoint.path}:`, error);
+        results.push({
+          endpoint: endpoint.path,
+          name: endpoint.name,
+          requests: 0,
+          successCount: 0,
+          errorCount: 1,
+          avgResponseTime: 0,
+          minResponseTime: 0,
+          maxResponseTime: 0,
+          p95ResponseTime: 0,
+          requestsPerSecond: 0,
+          errors: [error instanceof Error ? error.message : String(error)]
+        });
+      }
+    }
+
+    const totalTime = Date.now() - startTime;
+    const totalRequests = results.reduce((sum, r) => sum + r.requests, 0);
+    const totalSuccess = results.reduce((sum, r) => sum + r.successCount, 0);
+    const totalErrors = results.reduce((sum, r) => sum + r.errorCount, 0);
+
+    const benchmarkResponse: BenchmarkResponse = {
+      type: benchmarkType,
+      totalTime,
+      totalRequests,
+      totalSuccess,
+      totalErrors,
+      successRate: totalRequests > 0 ? (totalSuccess / totalRequests) * 100 : 0,
+      results,
+      config: {
+        requests,
+        concurrent,
+        tableName,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    console.log(`✅ Benchmark completed in ${totalTime}ms - ${totalSuccess}/${totalRequests} successful (${benchmarkResponse.successRate.toFixed(1)}%)`);
+
+    return createJsonResponse(
+      createSuccessResponse(benchmarkResponse, { 
+        namespace: await getActiveNamespace(),
+        benchmarkType,
+        totalTime 
+      })
+    );
+
+  } catch (error) {
+    console.error("❌ Error running benchmark:", error);
+    return createErrorResponse(
+      "Benchmark failed",
+      "Unable to execute performance benchmark",
+      "BENCHMARK_FAILED"
+    );
+  }
+}
+
+/**
+ * Exécute un test de benchmark sur un endpoint spécifique
+ */
+async function runBenchmarkTest(
+  endpoint: string, 
+  options: { requests: number; concurrent: number; withAuth: boolean }
+): Promise<Omit<BenchmarkResult, 'endpoint' | 'name'>> {
+  const { requests, concurrent, withAuth } = options;
+  const baseUrl = process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+  const fullUrl = `${baseUrl}${endpoint}`;
+  
+  const headers: Record<string, string> = {};
+  if (withAuth && process.env.BEARER_TOKEN) {
+    headers["Authorization"] = `Bearer ${process.env.BEARER_TOKEN}`;
+  }
+
+  const responseTimes: number[] = [];
+  let successCount = 0;
+  let errorCount = 0;
+  const errors: string[] = [];
+
+  // Créer des batches de requêtes concurrentes
+  const batches = Math.ceil(requests / concurrent);
+  const startTime = Date.now();
+
+  for (let batch = 0; batch < batches; batch++) {
+    const batchPromises = [];
+    const batchSize = Math.min(concurrent, requests - (batch * concurrent));
+
+    for (let i = 0; i < batchSize; i++) {
+      batchPromises.push(
+        fetch(fullUrl, { headers })
+          .then(async (response) => {
+            const requestTime = Date.now();
+            const responseTime = requestTime - startTime;
+            
+            if (response.ok) {
+              successCount++;
+              responseTimes.push(responseTime);
+            } else {
+              errorCount++;
+              errors.push(`HTTP ${response.status}: ${response.statusText}`);
+            }
+          })
+          .catch((error) => {
+            errorCount++;
+            errors.push(error.message);
+          })
+      );
+    }
+
+    await Promise.all(batchPromises);
+    
+    // Petite pause entre les batches pour éviter la surcharge
+    if (batch < batches - 1) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+  }
+
+  const totalTime = Date.now() - startTime;
+  const sortedTimes = responseTimes.sort((a, b) => a - b);
+  
+  return {
+    requests,
+    successCount,
+    errorCount,
+    avgResponseTime: responseTimes.length > 0 ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length : 0,
+    minResponseTime: sortedTimes[0] || 0,
+    maxResponseTime: sortedTimes[sortedTimes.length - 1] || 0,
+    p95ResponseTime: sortedTimes[Math.floor(sortedTimes.length * 0.95)] || 0,
+    requestsPerSecond: totalTime > 0 ? (successCount / totalTime) * 1000 : 0,
+    errors: errors.slice(0, 10) // Limiter à 10 erreurs pour éviter des réponses trop lourdes
+  };
 }
 
 /**

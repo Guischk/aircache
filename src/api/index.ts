@@ -8,6 +8,7 @@ import {
   handleTableRecords,
   handleSingleRecord,
   handleStats,
+  handleBenchmark,
   handleOptions
 } from "./routes";
 
@@ -40,6 +41,10 @@ async function handleRequest(request: Request): Promise<Response> {
     return handleStats(request);
   }
 
+  if (pathname === "/api/benchmark") {
+    return handleBenchmark(request);
+  }
+
   // Route table spécifique: /api/tables/:tableName
   const tableMatch = pathname.match(/^\/api\/tables\/([^\/]+)$/);
   if (tableMatch) {
@@ -67,7 +72,8 @@ async function handleRequest(request: Request): Promise<Response> {
         "GET /api/tables",
         "GET /api/tables/:tableName",
         "GET /api/tables/:tableName/:recordId",
-        "GET /api/stats"
+        "GET /api/stats",
+        "GET /api/benchmark"
       ]
     }),
     {
@@ -118,6 +124,7 @@ export async function startApiServer(port: number = 3000): Promise<void> {
   console.log(`   GET  /api/tables/:table          - Records d'une table`);
   console.log(`   GET  /api/tables/:table/:id      - Record spécifique`);
   console.log(`   GET  /api/stats                  - Statistiques du cache`);
+  console.log(`   GET  /api/benchmark              - Benchmark de performance`);
   console.log(`🔐 Authentication: Bearer Token requis pour /api/*`);
 }
 
