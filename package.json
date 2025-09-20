@@ -1,10 +1,33 @@
 {
   "name": "airtable-cacher",
+  "version": "1.0.0",
+  "description": "High-performance Airtable cache service with REST API and dual-namespace Redis strategy",
+  "author": "Your Name",
+  "license": "MIT",
+  "keywords": ["airtable", "cache", "redis", "api", "bun", "typescript"],
+  "main": "dist/index.js",
   "module": "index.ts",
   "type": "module",
   "private": true,
   "scripts": {
-    "airtable:types": "airtable-types-gen --output src/lib/airtable/schema.ts -f"
+    "start": "bun index.ts",
+    "dev": "bun --hot index.ts",
+    "build": "bun build index.ts --target=bun --outdir=dist",
+    "test": "bun test tests/",
+    "test:api": "bun test tests/api.test.ts",
+    "test:integration": "bun tests/integration.test.ts",
+    "test:performance": "bun tests/performance.test.ts",
+    "test:all": "bun run-tests.ts",
+    "benchmark:redis-vs-airtable": "bun tests/redis-vs-airtable.benchmark.ts",
+    "security-check": "bun security-check.ts",
+    "demo": "bun demo.ts",
+    "airtable:types": "airtable-types-gen --output src/lib/airtable/schema.ts -f",
+    "clean": "rm -rf dist *.md performance-report.md integration-report.md redis-vs-airtable-comparison.md"
+  },
+  "exports": {
+    ".": "./index.ts",
+    "./api": "./src/api/index.ts",
+    "./redis": "./src/lib/redis/index.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"

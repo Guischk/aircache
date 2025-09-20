@@ -34,6 +34,13 @@ cache/
 airtable-cache/
 *.cache.json
 
+# Generated reports (may contain production data)
+*-report.md
+*-comparison.md
+performance-report.md
+integration-report.md
+redis-vs-airtable-comparison.md
+
 # caches
 .eslintcache
 .cache
