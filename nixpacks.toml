@@ -8,8 +8,8 @@ nixPkgs = ["nodejs_20", "bun"]
 cmds = ["bun install"]
 
 [phases.build]
-# Génération du schéma Airtable + build
-cmds = ["bun run airtable:types", "bun run build"]
+# Build seulement (la génération du schéma est dans le script build)
+cmds = ["bun run build"]
 
 [start]
 cmd = "bun start"
