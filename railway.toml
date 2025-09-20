@@ -1,5 +1,6 @@
 [build]
-builder = "NIXPACKS"
+# Railpack est le nouveau système de build recommandé (remplace Nixpacks)
+builder = "RAILPACK"
 
 [deploy]
 startCommand = "bun start"

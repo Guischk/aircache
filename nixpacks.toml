@@ -1,0 +1,15 @@
+# Configuration Nixpacks pour compatibilité (Railpack est recommandé)
+# Ce fichier est optionnel car Railpack est le nouveau système de build
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "bun"]
+
+[phases.install]
+cmds = ["bun install"]
+
+[phases.build]
+# Génération du schéma Airtable + build
+cmds = ["bun run airtable:types", "bun run build"]
+
+[start]
+cmd = "bun start"
