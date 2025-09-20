@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "airtable:types": "airtable-types-gen --output src/airtable/schema.ts -f"
+    "airtable:types": "airtable-types-gen --output src/lib/airtable/schema.ts -f"
   },
   "devDependencies": {
     "@types/bun": "latest"

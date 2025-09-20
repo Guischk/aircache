@@ -1,3 +1,5 @@
+const refreshInterval = process.env.REFRESH_INTERVAL || 5400;
+
 const worker = new Worker("src/worker/index.ts");
 
 worker.onmessage = (e) => {

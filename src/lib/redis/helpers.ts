@@ -1,4 +1,4 @@
-import { redis } from "bun";
+import { redisService } from "./index";
 
 type ActiveNamespace = "v1" | "v2";
 
@@ -63,25 +63,76 @@ export const keyVersion = (active: ActiveNamespace, table: string) =>
 export const inactiveOf = (active: ActiveNamespace) =>
   active === "v2" ? "v1" : "v2";
 
-export async function flipActiveNS(target: ActiveNamespace) {
-  // On change le pointeur actif
-  redis.set("active_ns", target);
+export async function flipActiveNS(target: ActiveNamespace): Promise<void> {
+  try {
+    // On change le pointeur actif
+    await redisService.set("active_ns", target);
+    console.log(`🔄 Namespace actif basculé vers: ${target}`);
+  } catch (error) {
+    console.error("❌ Erreur lors du basculement de namespace:", error);
+    throw new Error(`Impossible de basculer vers ${target}: ${error}`);
+  }
 }
 
-// Lock simple (SET NX PX)
+// Lock simple (SET NX PX) avec gestion d'erreurs améliorée
 export async function withLock<T>(
   name: string,
   ttl: number,
   fn: () => Promise<T>
 ): Promise<T | null> {
+  const lockKey = `lock:${name}`;
   const token = crypto.randomUUID();
-  const ok = await redis.set(`lock:${name}`, token, "NX");
-  if (ok !== "OK") return null;
-  await redis.expire(`lock:${name}`, ttl);
+
   try {
-    return await fn();
+    console.log(`🔒 Tentative d'acquisition du lock: ${name}`);
+
+    // Tentative d'acquisition du lock
+    const lockResult = await redisService.native.set(lockKey, token, "NX");
+    if (lockResult !== "OK") {
+      console.log(`⏸️ Lock ${name} déjà pris, skip`);
+      return null;
+    }
+
+    // Définir le TTL pour éviter les locks orphelins
+    await redisService.expire(lockKey, ttl);
+    console.log(`✅ Lock ${name} acquis pour ${ttl}s`);
+
+    // Exécuter la fonction
+    const result = await fn();
+    console.log(`🏁 Lock ${name} - opération terminée avec succès`);
+    return result;
+
+  } catch (error) {
+    console.error(`❌ Erreur dans withLock "${name}":`, error);
+    throw error;
   } finally {
-    const v = await redis.get(`lock:${name}`);
-    if (v === token) await redis.del(`lock:${name}`);
+    // Libération du lock uniquement si c'est notre token
+    try {
+      const currentLockValue = await redisService.get(lockKey);
+      if (currentLockValue === token) {
+        await redisService.del(lockKey);
+        console.log(`🔓 Lock ${name} libéré`);
+      }
+    } catch (unlockError) {
+      console.error(`⚠️ Erreur lors de la libération du lock ${name}:`, unlockError);
+      // On ne throw pas ici pour ne pas masquer l'erreur principale
+    }
+  }
+}
+
+/**
+ * Fonction utilitaire pour obtenir le namespace actif
+ */
+export async function getActiveNamespace(): Promise<ActiveNamespace> {
+  try {
+    const active = await redisService.get("active_ns");
+    const namespace = active === "v2" ? "v2" : "v1";
+    console.log(`📍 Namespace actif: ${namespace}`);
+    return namespace;
+  } catch (error) {
+    console.error("❌ Erreur lors de la récupération du namespace actif:", error);
+    // Fallback sur v1 en cas d'erreur
+    console.log("🔄 Fallback sur namespace v1");
+    return "v1";
   }
 }
