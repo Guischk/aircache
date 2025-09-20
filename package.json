@@ -1,0 +1,19 @@
+{
+  "name": "airtable-cacher",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "airtable:types": "airtable-types-gen --output src/airtable/schema.ts -f"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "airtable": "^0.12.2",
+    "airtable-types-gen": "^0.4.0"
+  }
+}
