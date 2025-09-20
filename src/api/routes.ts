@@ -3,7 +3,7 @@
  */
 
 import { redisService } from "../lib/redis/index";
-import { getActiveNamespace, keyRecord } from "../lib/redis/helpers";
+import { getActiveNamespace, keyRecord, keyIndex } from "../lib/redis/helpers";
 import { normalizeForRedis } from "../lib/utils/index";
 import { AIRTABLE_TABLE_NAMES } from "../lib/airtable/schema";
 import { requireAuth, logAuthAttempt, isAuthenticated } from "./auth";
@@ -61,7 +61,8 @@ function createJsonResponse<T>(data: ApiResponse<T>, status: number = 200): Resp
       "Access-Control-Allow-Methods": "GET, OPTIONS",
       "Access-Control-Allow-Headers": "Authorization, Content-Type",
       "X-Cache-Namespace": data.meta?.namespace || "unknown",
-      "X-Cache-Timestamp": data.meta?.timestamp || new Date().toISOString()
+      "X-Cache-Timestamp": data.meta?.timestamp || new Date().toISOString(),
+      "Cache-Control": "public, max-age=30"
     }
   });
 }
@@ -166,20 +167,46 @@ export async function handleTableRecords(request: Request, tableName: string): P
     const namespace = await getActiveNamespace();
     const normalizedTableName = normalizeForRedis(tableName);
 
-    // Récupérer tous les records de la table (simplifié pour MVP)
-    // Dans une vraie implémentation, on utiliserait SCAN pour la pagination
-    const pattern = `${namespace}:${normalizedTableName}:rec:*`;
-    const keys = await redisService.native.keys(pattern);
+    // Pagination et filtrage des champs
+    const url = new URL(request.url);
+    const limitParam = url.searchParams.get("limit");
+    const offsetParam = url.searchParams.get("offset");
+    const fieldsParam = url.searchParams.get("fields");
 
-    const records = [];
-    for (const key of keys) {
+    const DEFAULT_LIMIT = parseInt(process.env.API_DEFAULT_LIMIT || "200");
+    const limit = Math.max(0, Math.min(1000, limitParam ? parseInt(limitParam, 10) : DEFAULT_LIMIT));
+    const offset = Math.max(0, offsetParam ? parseInt(offsetParam, 10) : 0);
+    const fields = fieldsParam ? fieldsParam.split(",").map((s) => s.trim()).filter(Boolean) : null;
+
+    // Utiliser l'index d'IDs et MGET pour des performances optimales
+    const indexKey = keyIndex(namespace, normalizedTableName);
+    // Récupère les IDs, trie pour déterminisme puis applique la pagination
+    const ids = await redisService.smembers(indexKey);
+    ids.sort();
+    const totalAvailable = ids.length;
+
+    const selectedIds = limit > 0 ? ids.slice(offset, offset + limit) : ids;
+    const recordKeys = selectedIds.map((id) => keyRecord(namespace, normalizedTableName, id));
+
+    const values = recordKeys.length > 0 ? await redisService.mget(recordKeys) : [];
+    const records = [] as any[];
+    for (const value of values) {
+      if (!value) continue;
       try {
-        const recordData = await redisService.get(key);
-        if (recordData) {
-          records.push(JSON.parse(recordData));
+        const parsed = JSON.parse(value);
+        if (fields && fields.length > 0) {
+          const projected: Record<string, any> = {};
+          for (const f of fields) {
+            if (Object.prototype.hasOwnProperty.call(parsed, f)) projected[f] = parsed[f];
+          }
+          // Toujours renvoyer l'identifiant
+          if (parsed.record_id && projected.record_id === undefined) projected.record_id = parsed.record_id;
+          records.push(projected);
+        } else {
+          records.push(parsed);
         }
       } catch (parseError) {
-        console.warn(`⚠️ Failed to parse record ${key}:`, parseError);
+        // ignorer les items invalides
       }
     }
 
@@ -187,7 +214,9 @@ export async function handleTableRecords(request: Request, tableName: string): P
       records,
       table: tableName,
       namespace,
-      total: records.length
+      total: totalAvailable,
+      limit: limit > 0 ? limit : undefined,
+      offset: offset || undefined
     };
 
     console.log(`📊 Table '${tableName}' requested - ${records.length} records`);
@@ -233,6 +262,11 @@ export async function handleSingleRecord(request: Request, tableName: string, re
     const normalizedTableName = normalizeForRedis(tableName);
     const key = keyRecord(namespace, normalizedTableName, recordId);
 
+    // Filtrage des champs optionnel
+    const url = new URL(request.url);
+    const fieldsParam = url.searchParams.get("fields");
+    const fields = fieldsParam ? fieldsParam.split(",").map((s) => s.trim()).filter(Boolean) : null;
+
     const recordData = await redisService.get(key);
 
     if (!recordData) {
@@ -243,7 +277,16 @@ export async function handleSingleRecord(request: Request, tableName: string, re
       );
     }
 
-    const record = JSON.parse(recordData);
+    const parsed = JSON.parse(recordData);
+    const record = (() => {
+      if (!fields || fields.length === 0) return parsed;
+      const projected: Record<string, any> = {};
+      for (const f of fields) {
+        if (Object.prototype.hasOwnProperty.call(parsed, f)) projected[f] = parsed[f];
+      }
+      if (parsed.record_id && projected.record_id === undefined) projected.record_id = parsed.record_id;
+      return projected;
+    })();
 
     const response: RecordResponse = {
       record,
@@ -288,17 +331,19 @@ export async function handleStats(request: Request): Promise<Response> {
     const tableStats = [];
     let totalRecords = 0;
 
-    for (const tableName of AIRTABLE_TABLE_NAMES) {
-      const normalizedTableName = normalizeForRedis(tableName);
-      const pattern = `${namespace}:${normalizedTableName}:rec:*`;
-      const keys = await redisService.native.keys(pattern);
+    // Paralleliser le comptage pour réduire la latence
+    const counts = await Promise.all(
+      AIRTABLE_TABLE_NAMES.map(async (t) => {
+        const normalizedTableName = normalizeForRedis(t);
+        const indexKey = keyIndex(namespace, normalizedTableName);
+        const count = await redisService.scard(indexKey);
+        return { name: t, count };
+      })
+    );
 
-      tableStats.push({
-        name: tableName,
-        recordCount: keys.length
-      });
-
-      totalRecords += keys.length;
+    for (const { name, count } of counts) {
+      tableStats.push({ name, recordCount: count });
+      totalRecords += count;
     }
 
     const stats: CacheStats = {

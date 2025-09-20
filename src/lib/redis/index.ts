@@ -1,7 +1,7 @@
 import { redis as bunRedis, RedisClient } from "bun";
 
 /**
- * Configuration du client Redis centralisé pour le cache Airtable
+ * Configuration du client Redis centralisï¿½ pour le cache Airtable
  */
 class RedisService {
   private client: typeof bunRedis;
@@ -22,7 +22,7 @@ class RedisService {
       await this.client.ping();
       this.isConnected = true;
       this.connectionRetries = 0;
-      console.log(" Redis connecté:", process.env.REDIS_URL || "redis://localhost:6379");
+      console.log(" Redis connectï¿½:", process.env.REDIS_URL || "redis://localhost:6379");
     } catch (error) {
       this.isConnected = false;
       this.connectionRetries++;
@@ -34,13 +34,13 @@ class RedisService {
         await Bun.sleep(2000);
         return this.connect();
       } else {
-        throw new Error(`Impossible de se connecter à Redis après ${this.maxRetries} tentatives`);
+        throw new Error(`Impossible de se connecter ï¿½ Redis aprï¿½s ${this.maxRetries} tentatives`);
       }
     }
   }
 
   /**
-   * Vérifie l'état de la connexion
+   * Vï¿½rifie l'ï¿½tat de la connexion
    */
   async healthCheck(): Promise<boolean> {
     try {
@@ -54,7 +54,7 @@ class RedisService {
   }
 
   /**
-   * Wrapper sécurisé pour les opérations Redis avec retry automatique
+   * Wrapper sï¿½curisï¿½ pour les opï¿½rations Redis avec retry automatique
    */
   async safeOperation<T>(operation: () => Promise<T>, operationName: string): Promise<T> {
     try {
@@ -71,21 +71,21 @@ class RedisService {
         await this.connect();
         return await operation();
       } catch (retryError) {
-        console.error(`L Échec retry pour "${operationName}":`, retryError);
+        console.error(`L ï¿½chec retry pour "${operationName}":`, retryError);
         throw retryError;
       }
     }
   }
 
   /**
-   * Accès au client Redis natif de Bun
+   * Accï¿½s au client Redis natif de Bun
    */
   get native() {
     return this.client;
   }
 
   /**
-   * Méthodes Redis les plus utilisées avec gestion d'erreurs
+   * Mï¿½thodes Redis les plus utilisï¿½es avec gestion d'erreurs
    */
   async get(key: string): Promise<string | null> {
     return this.safeOperation(
@@ -96,21 +96,22 @@ class RedisService {
 
   async set(key: string, value: string, options?: { ttl?: number }): Promise<void> {
     return this.safeOperation(async () => {
-      await this.client.set(key, value);
       if (options?.ttl) {
-        await this.client.expire(key, options.ttl);
+        await this.client.set(key, value, "EX", options.ttl);
+      } else {
+        await this.client.set(key, value);
       }
     }, `SET ${key}`);
   }
 
-  async del(key: string): Promise<void> {
+  async del(key: string): Promise<number> {
     return this.safeOperation(
       () => this.client.del(key),
       `DEL ${key}`
     );
   }
 
-  async expire(key: string, seconds: number): Promise<void> {
+  async expire(key: string, seconds: number): Promise<number> {
     return this.safeOperation(
       () => this.client.expire(key, seconds),
       `EXPIRE ${key}`
@@ -123,15 +124,45 @@ class RedisService {
       "PING"
     );
   }
+
+  async mget(keys: string[]): Promise<(string | null)[]> {
+    return this.safeOperation(
+      () => this.client.mget(...keys),
+      `MGET ${keys.length}`
+    );
+  }
+
+  async smembers(key: string): Promise<string[]> {
+    return this.safeOperation(
+      () => this.client.smembers(key),
+      `SMEMBERS ${key}`
+    );
+  }
+
+  async sadd(key: string, member: string): Promise<void> {
+    return this.safeOperation(
+      async () => {
+        await this.client.sadd(key, member);
+      },
+      `SADD ${key}`
+    );
+  }
+
+  async scard(key: string): Promise<number> {
+    return this.safeOperation(
+      () => this.client.scard(key),
+      `SCARD ${key}`
+    );
+  }
 }
 
 // Instance singleton du service Redis
 export const redisService = new RedisService();
 
-// Export du client natif pour les cas avancés
+// Export du client natif pour les cas avancï¿½s
 export const redis = redisService.native;
 
-// Export du service pour les opérations sécurisées
+// Export du service pour les opï¿½rations sï¿½curisï¿½es
 export { redisService as RedisService };
 
 // Types pour TypeScript

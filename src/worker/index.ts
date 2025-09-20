@@ -1,6 +1,6 @@
 // src/worker-refresh.ts
 import { redisService } from "../lib/redis/index";
-import { keyRecord, withLock, getActiveNamespace } from "../lib/redis/helpers";
+import { keyRecord, keyIndex, keyTables, withLock, getActiveNamespace } from "../lib/redis/helpers";
 import { inactiveOf, flipActiveNS } from "../lib/redis/helpers";
 import { updateSchemaWithRetry, validateSchema } from "../lib/airtable/schema-updater";
 import { AIRTABLE_TABLE_NAMES } from "../lib/airtable/schema";
@@ -57,23 +57,43 @@ self.onmessage = async (e) => {
         console.log(`📋 ${table}: ${results.length} enregistrements trouvés`);
         totalRecords += results.length;
 
-        for (const record of results) {
-          try {
-            // Flatten le record
-            const flattened = flattenRecord(record);
+        // Préparer les clés d'index
+        const indexKey = keyIndex(inactive, redisTableName);
 
-            // Génération de la clé Redis
-            const key = keyRecord(inactive, redisTableName, flattened.record_id);
-            const value = JSON.stringify(flattened);
+        // Ajouter la table à l'index des tables
+        const tablesKey = keyTables(inactive);
+        await redisService.sadd(tablesKey, redisTableName);
 
-            // Stockage Redis avec gestion d'erreur
-            await redisService.set(key, value, { ttl: TTL });
+        // Ecrire par paquets pour limiter la pression mémoire et bénéficier de l'auto-pipelining
+        const CHUNK_SIZE = 500;
+        for (let i = 0; i < results.length; i += CHUNK_SIZE) {
+          const chunk = results.slice(i, i + CHUNK_SIZE);
 
-          } catch (recordError) {
-            console.error(`❌ Erreur traitement record ${record.id}:`, recordError);
-            // Continue avec les autres records
-          }
+          await Promise.all(
+            chunk.map(async (record) => {
+              try {
+                const flattened = flattenRecord(record);
+                const recId = flattened.record_id;
+                const key = keyRecord(inactive, redisTableName, recId);
+                const value = JSON.stringify(flattened);
+
+                await Promise.all([
+                  redisService.set(key, value, { ttl: TTL }),
+                  redisService.sadd(indexKey, recId),
+                ]);
+
+              } catch (recordError) {
+                console.error(`❌ Erreur traitement record ${record.id}:`, recordError);
+              }
+            })
+          );
         }
+
+        // TTL sur l'index et l'index des tables pour rester cohérent avec les records
+        await Promise.all([
+          redisService.expire(indexKey, TTL),
+          redisService.expire(tablesKey, TTL),
+        ]);
 
         console.log(`✅ ${table}: ${results.length} enregistrements cachés`);
 

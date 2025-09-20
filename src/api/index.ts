@@ -12,14 +12,14 @@ import {
 } from "./routes";
 
 /**
- * Router simple pour gÈrer les diffÈrentes routes
+ * Router simple pour g√©rer les diff√©rentes routes
  */
 async function handleRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const pathname = url.pathname;
   const method = request.method;
 
-  console.log(`< ${method} ${pathname}`);
+  console.log(`< ${method} ${pathname}`);
 
   // CORS preflight
   if (method === "OPTIONS") {
@@ -40,14 +40,14 @@ async function handleRequest(request: Request): Promise<Response> {
     return handleStats(request);
   }
 
-  // Route table spÈcifique: /api/tables/:tableName
+  // Route table sp√©cifique: /api/tables/:tableName
   const tableMatch = pathname.match(/^\/api\/tables\/([^\/]+)$/);
   if (tableMatch) {
     const tableName = decodeURIComponent(tableMatch[1]);
     return handleTableRecords(request, tableName);
   }
 
-  // Route record spÈcifique: /api/tables/:tableName/:recordId
+  // Route record sp√©cifique: /api/tables/:tableName/:recordId
   const recordMatch = pathname.match(/^\/api\/tables\/([^\/]+)\/([^\/]+)$/);
   if (recordMatch) {
     const tableName = decodeURIComponent(recordMatch[1]);
@@ -55,7 +55,7 @@ async function handleRequest(request: Request): Promise<Response> {
     return handleSingleRecord(request, tableName, recordId);
   }
 
-  // Route non trouvÈe
+  // Route non trouv√©e
   return new Response(
     JSON.stringify({
       success: false,
@@ -81,10 +81,10 @@ async function handleRequest(request: Request): Promise<Response> {
 }
 
 /**
- * DÈmarre le serveur API
+ * D√©marre le serveur API
  */
 export async function startApiServer(port: number = 3000): Promise<void> {
-  console.log("=Ä DÈmarrage du serveur API...");
+  console.log("=üöÄ D√©marrage du serveur API...");
 
   const server = Bun.serve({
     port,
@@ -93,7 +93,7 @@ export async function startApiServer(port: number = 3000): Promise<void> {
 
     // Gestion d'erreurs du serveur
     error(error) {
-      console.error("L Erreur serveur:", error);
+      console.error("‚ùå Erreur serveur:", error);
       return new Response(
         JSON.stringify({
           success: false,
@@ -111,14 +111,14 @@ export async function startApiServer(port: number = 3000): Promise<void> {
     }
   });
 
-  console.log(` Serveur API dÈmarrÈ sur http://localhost:${port}`);
-  console.log(`=À Endpoints disponibles:`);
+  console.log(`‚úÖ Serveur API d√©marr√© sur http://localhost:${port}`);
+  console.log(`=üìã Endpoints disponibles:`);
   console.log(`   GET  /health                     - Health check`);
   console.log(`   GET  /api/tables                 - Liste des tables`);
   console.log(`   GET  /api/tables/:table          - Records d'une table`);
-  console.log(`   GET  /api/tables/:table/:id      - Record spÈcifique`);
+  console.log(`   GET  /api/tables/:table/:id      - Record sp√©cifique`);
   console.log(`   GET  /api/stats                  - Statistiques du cache`);
-  console.log(`= Authentication: Bearer Token requis pour /api/*`);
+  console.log(`üîê Authentication: Bearer Token requis pour /api/*`);
 }
 
 // Export pour usage externe

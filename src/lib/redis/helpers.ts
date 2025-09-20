@@ -87,14 +87,11 @@ export async function withLock<T>(
     console.log(`🔒 Tentative d'acquisition du lock: ${name}`);
 
     // Tentative d'acquisition du lock
-    const lockResult = await redisService.native.set(lockKey, token, "NX");
+    const lockResult = await redisService.native.send("SET", [lockKey, token, "NX", "EX", String(ttl)]);
     if (lockResult !== "OK") {
       console.log(`⏸️ Lock ${name} déjà pris, skip`);
       return null;
     }
-
-    // Définir le TTL pour éviter les locks orphelins
-    await redisService.expire(lockKey, ttl);
     console.log(`✅ Lock ${name} acquis pour ${ttl}s`);
 
     // Exécuter la fonction
