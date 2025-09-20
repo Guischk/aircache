@@ -13,6 +13,7 @@
     "start": "bun index.ts",
     "dev": "bun --hot index.ts",
     "build": "bun build index.ts --target=bun --outdir=dist",
+    "build:railway": "bun install && bun build index.ts --target=bun --outdir=dist --minify",
     "test": "bun test tests/",
     "test:api": "bun test tests/api.test.ts",
     "test:integration": "bun tests/integration.test.ts",
