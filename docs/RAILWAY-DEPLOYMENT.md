@@ -71,7 +71,9 @@ git push origin main
 AIRTABLE_PERSONAL_TOKEN=your-token
 AIRTABLE_BASE_ID=your-base-id
 BEARER_TOKEN=your-bearer-token
-SQLITE_PATH=/app/data/aircache.db
+SQLITE_V1_PATH=/app/data/aircache-v1.sqlite
+SQLITE_V2_PATH=/app/data/aircache-v2.sqlite
+SQLITE_METADATA_PATH=/app/data/metadata.sqlite
 STORAGE_PATH=/app/storage/attachments
 REFRESH_INTERVAL=86400
 CACHE_TTL=86400
@@ -165,9 +167,10 @@ curl -H "Authorization: Bearer $BEARER_TOKEN" \
 ### Troubleshooting
 ```bash
 # Si problème, vérifier :
-ls -la /app/data/        # Fichier SQLite créé ?
+ls -la /app/data/        # Fichiers SQLite créés ?
 ls -la /app/storage/     # Dossier attachments créé ?
-cat /app/data/aircache.db # DB not empty ?
+cat /app/data/aircache-v1.sqlite # DB v1 not empty ?
+cat /app/data/aircache-v2.sqlite # DB v2 not empty ?
 
 # Logs utiles :
 grep "SQLite" /var/log/app.log

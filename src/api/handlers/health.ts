@@ -13,7 +13,7 @@ export async function handleHealth(backend: BackendType): Promise<Response> {
       return new Response(JSON.stringify({
         status: "ok",
         backend: "sqlite",
-        database: "data/aircache.db",
+        database: "data/aircache-v1.sqlite, data/aircache-v2.sqlite",
         tables: stats.totalTables,
         totalRecords: stats.totalRecords,
         dbSize: stats.dbSize

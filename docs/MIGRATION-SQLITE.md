@@ -119,7 +119,9 @@ builder = "dockerfile"
 startCommand = "bun run start:sqlite"
 
 [environments.production.variables]
-SQLITE_PATH = "/app/data/aircache.db"
+SQLITE_V1_PATH = "/app/data/aircache-v1.sqlite"
+SQLITE_V2_PATH = "/app/data/aircache-v2.sqlite"
+SQLITE_METADATA_PATH = "/app/data/metadata.sqlite"
 STORAGE_PATH = "/app/storage/attachments"
 REFRESH_INTERVAL = "86400"
 ```
@@ -141,7 +143,9 @@ REFRESH_INTERVAL = "86400"
 ### Variables d'environnement SQLite
 ```env
 # SQLite configuration
-SQLITE_PATH=data/aircache.db
+SQLITE_V1_PATH=data/aircache-v1.sqlite
+SQLITE_V2_PATH=data/aircache-v2.sqlite
+SQLITE_METADATA_PATH=data/metadata.sqlite
 CACHE_TTL=86400
 REFRESH_INTERVAL=86400
 STORAGE_PATH=./storage/attachments

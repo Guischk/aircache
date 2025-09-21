@@ -38,9 +38,9 @@ class SQLiteService {
   private currentActive: ActiveVersion = "v1";
 
   constructor(
-    v1Path: string = process.env.SQLITE_V1_PATH || "data/aircache-v1.db",
-    v2Path: string = process.env.SQLITE_V2_PATH || "data/aircache-v2.db",
-    metadataPath: string = process.env.SQLITE_METADATA_PATH || "data/metadata.db"
+    v1Path: string = process.env.SQLITE_V1_PATH || "data/aircache-v1.sqlite",
+    v2Path: string = process.env.SQLITE_V2_PATH || "data/aircache-v2.sqlite",
+    metadataPath: string = process.env.SQLITE_METADATA_PATH || "data/metadata.sqlite"
   ) {
     this.v1Path = v1Path;
     this.v2Path = v2Path;

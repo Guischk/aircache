@@ -1,274 +1,360 @@
 #!/usr/bin/env bun
 
 /**
- * Benchmark de performances pour l'API Aircache
+ * Tests de performance pour Aircache
+ * Benchmarks et tests de charge
  */
 
-const API_BASE = "http://localhost:3000";
-const BEARER_TOKEN = process.env.BEARER_TOKEN || "test-token";
+import { test, expect, describe, beforeAll, afterAll } from "bun:test";
+import { performance } from "perf_hooks";
+import { spawn, type Subprocess } from "bun";
 
-interface PerformanceResult {
+const API_BASE = "http://localhost:3004";
+const BEARER_TOKEN = process.env.BEARER_TOKEN || "dev-token";
+
+let serverProcess: Subprocess | null = null;
+
+interface BenchmarkResult {
   endpoint: string;
   method: string;
-  totalRequests: number;
-  duration: number;
+  requests: number;
+  totalTime: number;
   avgResponseTime: number;
   minResponseTime: number;
   maxResponseTime: number;
+  p95ResponseTime: number;
   requestsPerSecond: number;
-  successRate: number;
-  errors: number;
+  successCount: number;
+  errorCount: number;
+  errors: string[];
 }
 
-class PerformanceBenchmark {
-  private results: PerformanceResult[] = [];
+async function apiRequest(endpoint: string, method = "GET"): Promise<{
+  success: boolean;
+  responseTime: number;
+  status: number;
+  error?: string;
+}> {
+  const startTime = performance.now();
 
-  async makeRequest(endpoint: string, withAuth: boolean = true): Promise<{ success: boolean, responseTime: number }> {
-    const start = performance.now();
-
+  try {
     const headers: Record<string, string> = {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${BEARER_TOKEN}`
     };
 
-    if (withAuth) {
-      headers["Authorization"] = `Bearer ${BEARER_TOKEN}`;
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      method,
+      headers
+    });
+
+    const responseTime = performance.now() - startTime;
+
+    return {
+      success: response.ok,
+      responseTime,
+      status: response.status
+    };
+  } catch (error) {
+    const responseTime = performance.now() - startTime;
+    return {
+      success: false,
+      responseTime,
+      status: 0,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+async function runBenchmark(endpoint: string, options: {
+  method?: string;
+  requests?: number;
+  concurrency?: number;
+  timeout?: number;
+}): Promise<BenchmarkResult> {
+  const {
+    method = "GET",
+    requests = 100,
+    concurrency = 10,
+    timeout = 30000
+  } = options;
+
+  console.log(`🧪 Benchmarking ${method} ${endpoint} (${requests} requests, ${concurrency} concurrent)`);
+
+  const results: number[] = [];
+  const errors: string[] = [];
+  let successCount = 0;
+  let errorCount = 0;
+
+  const startTime = performance.now();
+
+  // Run requests in batches to control concurrency
+  for (let i = 0; i < requests; i += concurrency) {
+    const batch = Math.min(concurrency, requests - i);
+    const promises = Array.from({ length: batch }, () =>
+      apiRequest(endpoint, method)
+    );
+
+    const batchResults = await Promise.all(promises);
+
+    for (const result of batchResults) {
+      results.push(result.responseTime);
+
+      if (result.success) {
+        successCount++;
+      } else {
+        errorCount++;
+        if (result.error) {
+          errors.push(result.error);
+        }
+      }
     }
 
-    try {
-      const response = await fetch(`${API_BASE}${endpoint}`, { headers });
-      const end = performance.now();
-
-      return {
-        success: response.ok,
-        responseTime: end - start
-      };
-    } catch (error) {
-      const end = performance.now();
-      return {
-        success: false,
-        responseTime: end - start
-      };
-    }
+    // Small delay between batches to avoid overwhelming
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
 
-  async benchmarkEndpoint(
-    endpoint: string,
-    options: {
-      requests?: number,
-      concurrent?: number,
-      withAuth?: boolean,
-      warmup?: number
-    } = {}
-  ): Promise<PerformanceResult> {
-    const {
-      requests = 100,
-      concurrent = 10,
-      withAuth = true,
-      warmup = 5
-    } = options;
+  const totalTime = performance.now() - startTime;
 
-    console.log(`\n🏃 Benchmark: ${endpoint}`);
-    console.log(`   Requests: ${requests}, Concurrent: ${concurrent}, Auth: ${withAuth ? "Yes" : "No"}`);
+  results.sort((a, b) => a - b);
+  const p95Index = Math.floor(results.length * 0.95);
 
-    // Warmup
-    console.log(`   🔥 Warmup (${warmup} requests)...`);
-    for (let i = 0; i < warmup; i++) {
-      await this.makeRequest(endpoint, withAuth);
-    }
+  return {
+    endpoint,
+    method,
+    requests,
+    totalTime,
+    avgResponseTime: results.reduce((a, b) => a + b, 0) / results.length,
+    minResponseTime: results[0],
+    maxResponseTime: results[results.length - 1],
+    p95ResponseTime: results[p95Index],
+    requestsPerSecond: (requests / totalTime) * 1000,
+    successCount,
+    errorCount,
+    errors: [...new Set(errors)] // Remove duplicates
+  };
+}
 
-    // Benchmark principal
-    console.log(`   ⚡ Running benchmark...`);
-    const startTime = performance.now();
-    const responseTimes: number[] = [];
-    let successCount = 0;
-    let errorCount = 0;
+beforeAll(async () => {
+  serverProcess = spawn(["bun", "index.ts"], {
+    env: { ...process.env, BEARER_TOKEN, PORT: "3004", NODE_ENV: "test" },
+    stdout: "pipe",
+    stderr: "pipe"
+  });
 
-    // Exécution par batches concurrents
-    const batches = Math.ceil(requests / concurrent);
+  await new Promise(resolve => setTimeout(resolve, 5000));
+});
 
-    for (let batch = 0; batch < batches; batch++) {
-      const batchRequests = Math.min(concurrent, requests - (batch * concurrent));
+afterAll(() => {
+  if (serverProcess) serverProcess.kill();
+});
 
-      const promises = Array.from({ length: batchRequests }, () =>
-        this.makeRequest(endpoint, withAuth)
+describe("Performance Tests", () => {
+
+  describe("Baseline Performance Tests", () => {
+    test("health endpoint should respond quickly", async () => {
+      const result = await runBenchmark("/health", {
+        method: "GET",
+        requests: 50,
+        concurrency: 5
+      });
+
+      expect(result.successCount).toBe(50);
+      expect(result.errorCount).toBe(0);
+      expect(result.avgResponseTime).toBeLessThan(100); // < 100ms average
+      expect(result.p95ResponseTime).toBeLessThan(200); // < 200ms 95th percentile
+      expect(result.requestsPerSecond).toBeGreaterThan(10); // > 10 RPS
+
+      console.log("📊 Health endpoint results:", result);
+    });
+
+    test("tables endpoint should handle moderate load", async () => {
+      const result = await runBenchmark("/api/tables", {
+        method: "GET",
+        requests: 30,
+        concurrency: 3
+      });
+
+      expect(result.successCount).toBe(30);
+      expect(result.errorCount).toBe(0);
+      expect(result.avgResponseTime).toBeLessThan(500); // < 500ms average
+      expect(result.p95ResponseTime).toBeLessThan(1000); // < 1s 95th percentile
+
+      console.log("📊 Tables endpoint results:", result);
+    });
+
+    test("stats endpoint performance", async () => {
+      const result = await runBenchmark("/api/stats", {
+        method: "GET",
+        requests: 25,
+        concurrency: 2
+      });
+
+      expect(result.successCount).toBe(25);
+      expect(result.errorCount).toBe(0);
+      expect(result.avgResponseTime).toBeLessThan(300); // < 300ms average
+
+      console.log("📊 Stats endpoint results:", result);
+    });
+  });
+
+  describe("Load Testing", () => {
+    test("should handle sustained load", async () => {
+      const result = await runBenchmark("/health", {
+        method: "GET",
+        requests: 200,
+        concurrency: 20,
+        timeout: 60000
+      });
+
+      expect(result.successCount).toBeGreaterThan(190); // > 95% success rate
+      expect(result.errorCount).toBeLessThan(10); // < 5% error rate
+      expect(result.avgResponseTime).toBeLessThan(200); // < 200ms average under load
+      expect(result.requestsPerSecond).toBeGreaterThan(20); // > 20 RPS sustained
+
+      console.log("📊 Load test results:", result);
+    });
+
+    test("should handle concurrent users", async () => {
+      // Simulate multiple concurrent users
+      const userCount = 10;
+      const requestsPerUser = 5;
+
+      const userPromises = Array.from({ length: userCount }, (_, userId) =>
+        Promise.all(
+          Array.from({ length: requestsPerUser }, () =>
+            apiRequest(`/health?t=${userId}_${Date.now()}`)
+          )
+        )
       );
 
-      const results = await Promise.all(promises);
+      const userResults = await Promise.all(userPromises);
 
-      results.forEach(result => {
-        responseTimes.push(result.responseTime);
-        if (result.success) {
-          successCount++;
-        } else {
-          errorCount++;
+      let totalRequests = 0;
+      let totalSuccess = 0;
+      let totalErrors = 0;
+      let totalResponseTime = 0;
+
+      for (const userResult of userResults) {
+        totalRequests += userResult.length;
+
+        for (const request of userResult) {
+          if (request.success) {
+            totalSuccess++;
+          } else {
+            totalErrors++;
+          }
+          totalResponseTime += request.responseTime;
         }
+      }
+
+      const successRate = (totalSuccess / totalRequests) * 100;
+      const avgResponseTime = totalResponseTime / totalRequests;
+
+      expect(successRate).toBeGreaterThan(95); // > 95% success rate
+      expect(avgResponseTime).toBeLessThan(150); // < 150ms average under concurrency
+
+      console.log(`📊 Concurrent users test: ${totalSuccess}/${totalRequests} successful (${successRate.toFixed(1)}%)`);
+      console.log(`⚡ Average response time: ${avgResponseTime.toFixed(2)}ms`);
+    });
+  });
+
+  describe("Stress Testing", () => {
+    test("should handle high concurrency", async () => {
+      const result = await runBenchmark("/health", {
+        method: "GET",
+        requests: 100,
+        concurrency: 50, // High concurrency
+        timeout: 45000
       });
 
-      // Progress indicator
-      const progress = Math.round(((batch + 1) / batches) * 100);
-      process.stdout.write(`\r   Progress: ${progress}%`);
-    }
+      // Under high stress, some degradation is acceptable
+      expect(result.successCount).toBeGreaterThan(80); // > 80% success rate
+      expect(result.avgResponseTime).toBeLessThan(1000); // < 1s average
+      expect(result.requestsPerSecond).toBeGreaterThan(5); // > 5 RPS minimum
 
-    const endTime = performance.now();
-    const totalDuration = endTime - startTime;
-
-    console.log(`\r   ✅ Completed!                    `);
-
-    const result: PerformanceResult = {
-      endpoint,
-      method: "GET",
-      totalRequests: requests,
-      duration: totalDuration,
-      avgResponseTime: responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length,
-      minResponseTime: Math.min(...responseTimes),
-      maxResponseTime: Math.max(...responseTimes),
-      requestsPerSecond: (requests / totalDuration) * 1000,
-      successRate: (successCount / requests) * 100,
-      errors: errorCount
-    };
-
-    this.results.push(result);
-    this.printResult(result);
-
-    return result;
-  }
-
-  private printResult(result: PerformanceResult): void {
-    console.log(`   📊 Results:`);
-    console.log(`      • Avg Response Time: ${result.avgResponseTime.toFixed(2)}ms`);
-    console.log(`      • Min/Max: ${result.minResponseTime.toFixed(2)}ms / ${result.maxResponseTime.toFixed(2)}ms`);
-    console.log(`      • Requests/sec: ${result.requestsPerSecond.toFixed(2)} req/s`);
-    console.log(`      • Success Rate: ${result.successRate.toFixed(1)}%`);
-    console.log(`      • Errors: ${result.errors}`);
-  }
-
-  generateReport(): string {
-    let report = "# 🚀 Performance Benchmark Report\n\n";
-    report += `Generated on: ${new Date().toISOString()}\n\n`;
-
-    report += "## 📊 Summary\n\n";
-    report += "| Endpoint | Requests | Avg Response (ms) | Requests/sec | Success Rate |\n";
-    report += "|----------|----------|-------------------|--------------|---------------|\n";
-
-    this.results.forEach(result => {
-      report += `| ${result.endpoint} | ${result.totalRequests} | ${result.avgResponseTime.toFixed(2)} | ${result.requestsPerSecond.toFixed(2)} | ${result.successRate.toFixed(1)}% |\n`;
+      console.log("📊 Stress test results:", result);
     });
 
-    report += "\n## 📈 Detailed Results\n\n";
-
-    this.results.forEach(result => {
-      report += `### ${result.endpoint}\n\n`;
-      report += `- **Total Requests**: ${result.totalRequests}\n`;
-      report += `- **Test Duration**: ${result.duration.toFixed(2)}ms\n`;
-      report += `- **Average Response Time**: ${result.avgResponseTime.toFixed(2)}ms\n`;
-      report += `- **Min Response Time**: ${result.minResponseTime.toFixed(2)}ms\n`;
-      report += `- **Max Response Time**: ${result.maxResponseTime.toFixed(2)}ms\n`;
-      report += `- **Requests per Second**: ${result.requestsPerSecond.toFixed(2)} req/s\n`;
-      report += `- **Success Rate**: ${result.successRate.toFixed(1)}%\n`;
-      report += `- **Errors**: ${result.errors}\n\n`;
-    });
-
-    // Performance grade
-    const avgRps = this.results.reduce((sum, r) => sum + r.requestsPerSecond, 0) / this.results.length;
-    const avgResponseTime = this.results.reduce((sum, r) => sum + r.avgResponseTime, 0) / this.results.length;
-
-    report += "## 🎯 Performance Grade\n\n";
-
-    if (avgRps > 1000 && avgResponseTime < 50) {
-      report += "**Grade: A+** - Excellent performance! 🏆\n";
-    } else if (avgRps > 500 && avgResponseTime < 100) {
-      report += "**Grade: A** - Very good performance! ⭐\n";
-    } else if (avgRps > 200 && avgResponseTime < 200) {
-      report += "**Grade: B** - Good performance ✅\n";
-    } else if (avgRps > 100 && avgResponseTime < 500) {
-      report += "**Grade: C** - Acceptable performance ⚠️\n";
-    } else {
-      report += "**Grade: D** - Performance needs improvement ❌\n";
-    }
-
-    report += `\n- **Average Requests/sec**: ${avgRps.toFixed(2)} req/s\n`;
-    report += `- **Average Response Time**: ${avgResponseTime.toFixed(2)}ms\n`;
-
-    return report;
-  }
-}
-
-async function runPerformanceTests(): Promise<void> {
-  console.log("🏁 Starting Performance Benchmark");
-  console.log("==================================");
-
-  const benchmark = new PerformanceBenchmark();
-
-  // Tests différents endpoints avec paramètres variés
-  await benchmark.benchmarkEndpoint("/health", {
-    requests: 200,
-    concurrent: 20,
-    withAuth: false
-  });
-
-  await benchmark.benchmarkEndpoint("/api/tables", {
-    requests: 100,
-    concurrent: 10
-  });
-
-  await benchmark.benchmarkEndpoint("/api/stats", {
-    requests: 50,
-    concurrent: 5
-  });
-
-  // Test with dynamically selected table
-  const healthResponse = await fetch(`${API_BASE}/health`);
-  if (healthResponse.ok) {
-    try {
-      const tablesResponse = await fetch(`${API_BASE}/api/tables`, {
-        headers: { "Authorization": `Bearer ${BEARER_TOKEN}` }
+    test("should recover from stress", async () => {
+      // Apply stress
+      await runBenchmark("/health", {
+        requests: 50,
+        concurrency: 25,
+        timeout: 10000
       });
-      const tablesData = await tablesResponse.json() as any;
-      const firstTable = tablesData.data?.tables?.[0];
+
+      // Test recovery with normal load
+      const recoveryResult = await runBenchmark("/health", {
+        requests: 20,
+        concurrency: 3,
+        timeout: 15000
+      });
+
+      expect(recoveryResult.successCount).toBe(20);
+      expect(recoveryResult.errorCount).toBe(0);
+      expect(recoveryResult.avgResponseTime).toBeLessThan(200); // Should recover to normal
+
+      console.log("📊 Recovery test results:", recoveryResult);
+    });
+  });
+
+  describe("Memory and Resource Usage", () => {
+    test("should not leak memory under sustained load", async () => {
+      const initialMemory = process.memoryUsage();
+
+      // Run sustained load
+      await runBenchmark("/health", {
+        requests: 100,
+        concurrency: 10,
+        timeout: 20000
+      });
+
+      const finalMemory = process.memoryUsage();
+      const memoryIncrease = finalMemory.heapUsed - initialMemory.heapUsed;
+
+      // Memory increase should be reasonable (less than 50MB)
+      expect(memoryIncrease).toBeLessThan(50 * 1024 * 1024);
+
+      console.log(`📊 Memory usage: ${initialMemory.heapUsed / 1024 / 1024}MB -> ${finalMemory.heapUsed / 1024 / 1024}MB`);
+      console.log(`⚡ Memory increase: ${(memoryIncrease / 1024 / 1024).toFixed(2)}MB`);
+    });
+  });
+
+  describe("Endpoint-Specific Performance", () => {
+    test("refresh endpoint should handle load", async () => {
+      const result = await runBenchmark("/api/refresh", {
+        method: "POST",
+        requests: 10,
+        concurrency: 1, // Refresh is typically called less frequently
+        timeout: 60000
+      });
+
+      expect(result.successCount).toBe(10);
+      expect(result.errorCount).toBe(0);
+      expect(result.avgResponseTime).toBeLessThan(2000); // < 2s average for refresh
+
+      console.log("📊 Refresh endpoint results:", result);
+    });
+
+    test("table records endpoint performance", async () => {
+      // First get available tables
+      const tablesResult = await apiRequest("/api/tables");
+      const firstTable = tablesResult.data.data.tables[0];
 
       if (firstTable) {
-        await benchmark.benchmarkEndpoint(`/api/tables/${encodeURIComponent(firstTable)}`, {
-          requests: 50,
-          concurrent: 5
+        const result = await runBenchmark(`/api/tables/${encodeURIComponent(firstTable)}`, {
+          requests: 20,
+          concurrency: 5,
+          timeout: 30000
         });
-      }
-    } catch (error) {
-      console.log("⚠️ Skipping table-specific test - API not available");
-    }
-  }
 
-  // Stress test
-  await benchmark.benchmarkEndpoint("/health", {
-    requests: 1000,
-    concurrent: 50,
-    withAuth: false
+        expect(result.successCount).toBe(20);
+        expect(result.avgResponseTime).toBeLessThan(1000); // < 1s average
+
+        console.log(`📊 Table records endpoint results (${firstTable}):`, result);
+      }
+    });
   });
 
-  console.log("\n" + "=".repeat(50));
-  console.log("🎯 BENCHMARK COMPLETED");
-  console.log("=".repeat(50));
-
-  // Générer et sauvegarder le rapport
-  const report = benchmark.generateReport();
-
-  await Bun.write("performance-report.md", report);
-  console.log("📝 Performance report saved to: performance-report.md");
-
-  // Afficher un résumé dans la console
-  console.log("\n📊 Quick Summary:");
-  const results = (benchmark as any).results;
-  const avgRps = results.reduce((sum: number, r: any) => sum + r.requestsPerSecond, 0) / results.length;
-  const avgResponseTime = results.reduce((sum: number, r: any) => sum + r.avgResponseTime, 0) / results.length;
-
-  console.log(`   • Average: ${avgRps.toFixed(2)} req/s`);
-  console.log(`   • Response: ${avgResponseTime.toFixed(2)}ms`);
-  console.log(`   • Tests: ${results.length} endpoints tested`);
-}
-
-// Attendre que le serveur soit prêt
-console.log("⏳ Waiting for server to be ready...");
-await Bun.sleep(3000);
-
-runPerformanceTests().catch(console.error);
-
-export {};
+});

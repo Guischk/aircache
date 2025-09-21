@@ -81,7 +81,7 @@ async function startSQLiteServer(config: ServerConfig): Promise<void> {
 
   console.log(`⏰ Refresh programmé toutes les ${config.refreshInterval/3600} heures`);
   console.log(`✅ Service SQLite complet démarré !`);
-  console.log(`📊 Base de données: data/aircache.db`);
+  console.log(`📊 Bases de données: data/aircache-v1.sqlite, data/aircache-v2.sqlite`);
   console.log(`📎 Attachments: ${process.env.STORAGE_PATH || './data/attachments'}`);
 
   setupGracefulShutdown(worker, 'sqlite');

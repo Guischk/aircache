@@ -15,14 +15,18 @@ volumes = [
 
 [environments.production.variables]
 NODE_ENV = "production"
-SQLITE_PATH = "/app/data/aircache.db"
+SQLITE_V1_PATH = "/app/data/aircache-v1.sqlite"
+SQLITE_V2_PATH = "/app/data/aircache-v2.sqlite"
+SQLITE_METADATA_PATH = "/app/data/metadata.sqlite"
 STORAGE_PATH = "/app/storage/attachments"
 REFRESH_INTERVAL = "86400"
 CACHE_TTL = "86400"
 
 [environments.staging.variables]
 NODE_ENV = "staging"
-SQLITE_PATH = "/app/data/aircache-staging.db"
+SQLITE_V1_PATH = "/app/data/aircache-staging-v1.sqlite"
+SQLITE_V2_PATH = "/app/data/aircache-staging-v2.sqlite"
+SQLITE_METADATA_PATH = "/app/data/metadata-staging.sqlite"
 STORAGE_PATH = "/app/storage/attachments-staging"
 REFRESH_INTERVAL = "43200"
 CACHE_TTL = "43200"

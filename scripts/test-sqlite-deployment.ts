@@ -76,14 +76,18 @@ class SQLiteDeploymentTest {
       }
 
       // Variables SQLite (avec defaults)
-      const sqlitePath = process.env.SQLITE_PATH || 'data/aircache.db';
+      const sqliteV1Path = process.env.SQLITE_V1_PATH || 'data/aircache-v1.sqlite';
+      const sqliteV2Path = process.env.SQLITE_V2_PATH || 'data/aircache-v2.sqlite';
+      const sqliteMetadataPath = process.env.SQLITE_METADATA_PATH || 'data/metadata.sqlite';
       const storagePath = process.env.STORAGE_PATH || './storage/attachments';
 
       this.results.push({
         name: "Environment Variables",
         success: true,
         data: {
-          sqlitePath,
+          sqliteV1Path,
+          sqliteV2Path,
+          sqliteMetadataPath,
           storagePath,
           refreshInterval: process.env.REFRESH_INTERVAL || '86400'
         }
@@ -103,7 +107,8 @@ class SQLiteDeploymentTest {
 
     try {
       const storagePath = process.env.STORAGE_PATH || './storage/attachments';
-      const dataPath = process.env.SQLITE_PATH?.split('/').slice(0, -1).join('/') || 'data';
+      const sqliteV1Path = process.env.SQLITE_V1_PATH || 'data/aircache-v1.sqlite';
+      const dataPath = sqliteV1Path.split('/').slice(0, -1).join('/') || 'data';
 
       // Créer les dossiers s'ils n'existent pas
       await Bun.write(`${dataPath}/.gitkeep`, '');
