@@ -1,9 +1,9 @@
 /**
- * Configuration pour tous les tests Aircache
+ * Configuration for all Aircache tests
  */
 
 export const TEST_CONFIG = {
-  // Configuration du serveur de test
+  // Test server configuration
   server: {
     port: 3001,
     host: "localhost",

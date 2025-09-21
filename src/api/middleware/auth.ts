@@ -1,5 +1,5 @@
 /**
- * Middleware d'authentification unifié
+ * Unified authentication middleware
  */
 
 export function validateBearerToken(request: Request): boolean {
@@ -7,7 +7,7 @@ export function validateBearerToken(request: Request): boolean {
   const expectedToken = process.env.BEARER_TOKEN;
 
   if (!expectedToken) {
-    return true; // Pas d'auth configurée
+    return true; // No authentication configured
   }
 
   if (!authHeader) {

@@ -1,33 +1,33 @@
-# 🚀 Guide de déploiement Railway SQLite
+# 🚀 Railway SQLite Deployment Guide
 
-## ✅ Prérequis vérifiés
+## ✅ Prerequisites Verified
 
-Tous les éléments nécessaires ont été mis en place :
+All necessary elements have been put in place:
 
-- ✅ Scripts package.json mis à jour pour SQLite
-- ✅ railway.toml configuré pour SQLite avec volumes
-- ✅ .gitignore protège les données SQLite et storage
-- ✅ Workers et API adaptés pour SQLite
-- ✅ Variables d'environnement configurées
-- ✅ Script de test de déploiement
+- ✅ Package.json scripts updated for SQLite
+- ✅ railway.toml configured for SQLite with volumes
+- ✅ .gitignore protects SQLite data and storage
+- ✅ Workers and API adapted for SQLite
+- ✅ Environment variables configured
+- ✅ Deployment test script
 
-## 🧪 Test pré-déploiement
+## 🧪 Pre-deployment Testing
 
-### 1. Test local
+### 1. Local Testing
 ```bash
-# Démarrer l'application SQLite
+# Start the SQLite application
 bun run start:sqlite
 
-# Dans un autre terminal, tester
+# In another terminal, test
 bun test-sqlite-deployment.ts
 ```
 
-### 2. Vérification manuelle
+### 2. Manual Verification
 ```bash
 # Health check
 curl http://localhost:3000/health
 
-# API avec auth
+# API with auth
 curl -H "Authorization: Bearer $BEARER_TOKEN" \
      http://localhost:3000/api/tables
 
@@ -36,37 +36,37 @@ curl -H "Authorization: Bearer $BEARER_TOKEN" \
      http://localhost:3000/api/stats
 ```
 
-## 🚀 Déploiement Railway
+## 🚀 Railway Deployment
 
-### Option A: Migration du projet existant (recommandée)
+### Option A: Existing Project Migration (Recommended)
 
-#### 1. Backup et préparation
+#### 1. Backup and Preparation
 ```bash
-# Backup de l'environnement actuel
+# Backup current environment
 cp .env .env.redis.backup
 
-# Vérifier la configuration
+# Verify configuration
 cat railway.toml
 cat .env.example
 ```
 
-#### 2. Commit des changements
+#### 2. Commit Changes
 ```bash
 git add .
-git commit -m "Migration vers SQLite - Architecture simplifiée et coûts réduits
+git commit -m "Migration to SQLite - Simplified architecture and reduced costs
 
-- Remplacement de Redis par SQLite (bun:sqlite)
-- Storage des attachments intégré
-- Refresh journalier au lieu de 1h30
-- Économie prévue: 15$ → 2-3$/mois (80% d'économie)
-- API 100% compatible avec version Redis"
+- Replace Redis with SQLite (bun:sqlite)
+- Integrated attachment storage
+- Daily refresh instead of 1h30
+- Expected savings: $15 → $2-3/month (80% savings)
+- 100% compatible API with Redis version"
 
 git push origin main
 ```
 
-#### 3. Configuration Railway Dashboard
+#### 3. Railway Dashboard Configuration
 
-**Variables d'environnement à configurer :**
+**Environment variables to configure:**
 ```env
 AIRTABLE_PERSONAL_TOKEN=your-token
 AIRTABLE_BASE_ID=your-base-id
@@ -80,29 +80,29 @@ CACHE_TTL=86400
 NODE_ENV=production
 ```
 
-#### 4. Suppression du service Redis
-1. Aller dans Railway Dashboard
-2. Sélectionner votre projet
-3. Supprimer le service Redis
-4. **Économie immédiate : -10-12$/mois**
+#### 4. Remove Redis Service
+1. Go to Railway Dashboard
+2. Select your project
+3. Delete the Redis service
+4. **Immediate savings: -$10-12/month**
 
-### Option B: Nouveau projet Railway
+### Option B: New Railway Project
 
 ```bash
-# Initialiser un nouveau projet
+# Initialize a new project
 railway login
 railway init aircache-sqlite
 railway up
 
-# Configurer les variables d'environnement
+# Configure environment variables
 railway variables set AIRTABLE_PERSONAL_TOKEN=your-token
 railway variables set AIRTABLE_BASE_ID=your-base-id
 railway variables set BEARER_TOKEN=your-bearer-token
 ```
 
-## 📊 Monitoring post-déploiement
+## 📊 Post-deployment Monitoring
 
-### 1. Vérifications immédiates
+### 1. Immediate Checks
 ```bash
 # Health check
 curl https://your-app.railway.app/health
@@ -112,115 +112,115 @@ curl -H "Authorization: Bearer $BEARER_TOKEN" \
      https://your-app.railway.app/api/stats
 ```
 
-### 2. Logs Railway
-- Surveiller les logs de démarrage
-- Vérifier la création des dossiers `/app/data` et `/app/storage`
-- Confirmer la connexion SQLite
-- Observer le premier refresh
+### 2. Railway Logs
+- Monitor startup logs
+- Verify creation of `/app/data` and `/app/storage` folders
+- Confirm SQLite connection
+- Observe the first refresh
 
-### 3. Métriques à surveiller
-- **Temps de réponse** : Doit être ≤ version Redis
-- **Taille DB SQLite** : Croissance normale selon vos données
-- **RAM usage** : Devrait être plus stable
-- **CPU usage** : Pics lors des refresh journaliers
+### 3. Metrics to Monitor
+- **Response time**: Should be ≤ Redis version
+- **SQLite DB size**: Normal growth according to your data
+- **RAM usage**: Should be more stable
+- **CPU usage**: Spikes during daily refreshes
 
-## 💰 Économies réalisées
+## 💰 Cost Savings Achieved
 
-| Composant | Avant | Après | Économie |
+| Component | Before | After | Savings |
 |-----------|-------|-------|----------|
-| Application | ~3$/mois | ~2-3$/mois | 0$ |
-| Redis Service | ~10-12$/mois | **0$** | **-12$/mois** |
-| Storage | Externe | Inclus | Variable |
-| **TOTAL** | **~15$/mois** | **~2-3$/mois** | **~80%** |
+| Application | ~$3/month | ~$2-3/month | $0 |
+| Redis Service | ~$10-12/month | **$0** | **-$12/month** |
+| Storage | External | Included | Variable |
+| **TOTAL** | **~$15/month** | **~$2-3/month** | **~80%** |
 
-## 🔧 Nouvelles fonctionnalités
+## 🔧 New Features
 
-### Attachments automatiques
+### Automatic Attachments
 ```bash
-# Les fichiers Airtable sont maintenant :
-# - Détectés automatiquement
-# - Téléchargés lors du refresh
-# - Stockés dans /app/storage/attachments
-# - Servis via /api/attachments/:id
+# Airtable files are now:
+# - Automatically detected
+# - Downloaded during refresh
+# - Stored in /app/storage/attachments
+# - Served via /api/attachments/:id
 ```
 
-### Refresh optimisé
+### Optimized Refresh
 ```bash
-# Nouveau cycle :
-# - Refresh journalier (au lieu de 1h30)
-# - 90% moins d'appels API Airtable
-# - Refresh manuel via POST /api/refresh
+# New cycle:
+# - Daily refresh (instead of 1h30)
+# - 90% fewer Airtable API calls
+# - Manual refresh via POST /api/refresh
 ```
 
-## ⚠️ Points d'attention
+## ⚠️ Important Considerations
 
 ### Performance
-- **Latence** : SQLite local devrait être plus rapide que Redis réseau
-- **Concurrent writes** : SQLite sérialise les écritures (normal)
-- **Taille DB** : Surveiller la croissance, optimisée pour plusieurs GB
+- **Latency**: Local SQLite should be faster than network Redis
+- **Concurrent writes**: SQLite serializes writes (normal behavior)
+- **DB size**: Monitor growth, optimized for several GB
 
-### Données
-- **Migration automatique** : Première sync recrée tout le cache
-- **Persistance** : Plus de perte de cache au redémarrage
-- **Backup** : Un seul fichier SQLite à sauvegarder
+### Data
+- **Automatic migration**: First sync recreates the entire cache
+- **Persistence**: No more cache loss on restart
+- **Backup**: Single SQLite file to backup
 
 ### Troubleshooting
 ```bash
-# Si problème, vérifier :
-ls -la /app/data/        # Fichiers SQLite créés ?
-ls -la /app/storage/     # Dossier attachments créé ?
-cat /app/data/aircache-v1.sqlite # DB v1 not empty ?
-cat /app/data/aircache-v2.sqlite # DB v2 not empty ?
+# If problems occur, check:
+ls -la /app/data/        # SQLite files created?
+ls -la /app/storage/     # Attachments folder created?
+cat /app/data/aircache-v1.sqlite # DB v1 not empty?
+cat /app/data/aircache-v2.sqlite # DB v2 not empty?
 
-# Logs utiles :
+# Useful logs:
 grep "SQLite" /var/log/app.log
 grep "Worker" /var/log/app.log
 ```
 
-## 🔙 Plan de rollback
+## 🔙 Rollback Plan
 
-Si problème critique :
+If critical issues occur:
 
-### 1. Rollback code
+### 1. Code Rollback
 ```bash
 git revert HEAD
 git push origin main
 ```
 
-### 2. Reconfigurer Redis
+### 2. Reconfigure Redis
 ```bash
-# Dans Railway Dashboard :
+# In Railway Dashboard:
 # 1. Add Redis service
-# 2. Reconfigurer REDIS_URL
-# 3. Supprimer variables SQLite
+# 2. Reconfigure REDIS_URL
+# 3. Remove SQLite variables
 ```
 
-### 3. Restaurer l'environnement
+### 3. Restore Environment
 ```bash
 cp .env.redis.backup .env
 ```
 
-## ✅ Checklist de déploiement
+## ✅ Deployment Checklist
 
-- [ ] Tests locaux passés (`bun test-sqlite-deployment.ts`)
-- [ ] Variables d'environnement configurées sur Railway
-- [ ] Commit et push des changements
-- [ ] Déploiement Railway réussi
-- [ ] Service Redis supprimé
-- [ ] Health check post-déploiement OK
-- [ ] Premier refresh complété
-- [ ] Monitoring 24h sans problème
-- [ ] Documentation équipe mise à jour
+- [ ] Local tests passed (`bun test-sqlite-deployment.ts`)
+- [ ] Environment variables configured on Railway
+- [ ] Changes committed and pushed
+- [ ] Railway deployment successful
+- [ ] Redis service removed
+- [ ] Post-deployment health check OK
+- [ ] First refresh completed
+- [ ] 24h monitoring without issues
+- [ ] Team documentation updated
 
-## 🎯 Résultat final
+## 🎯 Final Result
 
-**Architecture simplifiée :**
-- ✅ Une seule application Railway
-- ✅ Base de données SQLite intégrée
-- ✅ Storage des attachments local
-- ✅ **Coûts réduits de 80%**
-- ✅ API 100% compatible
-- ✅ Performances équivalentes ou meilleures
+**Simplified architecture:**
+- ✅ Single Railway application
+- ✅ Integrated SQLite database
+- ✅ Local attachment storage
+- ✅ **80% cost reduction**
+- ✅ 100% compatible API
+- ✅ Equivalent or better performance
 
-**Support :**
-Si problème, les logs detaillés sont disponibles dans Railway Dashboard > Deployments > View Logs.
+**Support:**
+If issues occur, detailed logs are available in Railway Dashboard > Deployments > View Logs.

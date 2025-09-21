@@ -1,25 +1,25 @@
 # Migration Redis → SQLite
 
-## 🎯 Objectif
+## 🎯 Objective
 
-Migrer l'architecture de cache Redis vers SQLite pour :
-- **Réduire les coûts Railway** de 15$/mois à ~2-3$/mois
-- **Simplifier l'architecture** (une seule application)
-- **Améliorer la persistance** des données
-- **Intégrer le stockage des attachments** directement
+Migrate the Redis cache architecture to SQLite to:
+- **Reduce Railway costs** from $15/month to ~$2-3/month
+- **Simplify the architecture** (single application)
+- **Improve data persistence**
+- **Integrate attachment storage** directly
 
-## 💰 Économies prévues
+## 💰 Expected Savings
 
-| Composant | Avant (Redis) | Après (SQLite) | Économie |
-|-----------|---------------|----------------|----------|
-| Application | ~3$/mois | ~2-3$/mois | 0$ |
-| Redis Service | ~10-12$/mois | 0$ | -12$/mois |
-| Storage | Externe | Inclus Railway | Variable |
-| **Total** | **~15$/mois** | **~2-3$/mois** | **~80% d'économie** |
+| Component | Before (Redis) | After (SQLite) | Savings |
+|-----------|----------------|----------------|---------|
+| Application | ~$3/month | ~$2-3/month | $0 |
+| Redis Service | ~$10-12/month | $0 | -$12/month |
+| Storage | External | Included Railway | Variable |
+| **Total** | **~$15/month** | **~$2-3/month** | **~80% savings** |
 
 ## 🏗️ Architecture
 
-### Avant (Redis)
+### Before (Redis)
 ```
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
 │ Application │───▶│ Redis Cache │───▶│   Airtable  │
@@ -33,7 +33,7 @@ Migrer l'architecture de cache Redis vers SQLite pour :
 └─────────────┘                    └─────────────┘
 ```
 
-### Après (SQLite)
+### After (SQLite)
 ```
 ┌─────────────────────────────────┐    ┌─────────────┐
 │          Application            │───▶│   Airtable  │
@@ -48,67 +48,67 @@ Migrer l'architecture de cache Redis vers SQLite pour :
 └─────────────────────────────────┘
 ```
 
-## 📋 Migration étape par étape
+## 📋 Step-by-step Migration
 
-### 1. Préparation
+### 1. Preparation
 
 ```bash
-# Sauvegarde de l'environnement actuel
+# Backup current environment
 cp .env .env.redis.backup
 
-# Mise à jour de la configuration
+# Update configuration
 cp .env.example .env
-# Éditer .env avec SQLITE_PATH et STORAGE_PATH
+# Edit .env with SQLITE_PATH and STORAGE_PATH
 ```
 
-### 2. Test local
+### 2. Local Testing
 
 ```bash
-# Démarrer en mode SQLite
+# Start in SQLite mode
 bun run start:sqlite
 
-# OU en développement
+# OR in development
 bun run dev:sqlite
 
-# Vérifier les endpoints
+# Verify endpoints
 curl http://localhost:3000/health
 curl -H "Authorization: Bearer $BEARER_TOKEN" http://localhost:3000/api/tables
 ```
 
-### 3. Benchmark comparatif
+### 3. Comparative Benchmark
 
 ```bash
-# Comparer les performances
+# Compare performance
 bun run benchmark:sqlite
 
-# Résultats attendus :
-# - SQLite plus rapide en local (pas de latence réseau)
-# - Transactions plus robustes
-# - Stockage persistent automatique
+# Expected results:
+# - SQLite faster locally (no network latency)
+# - More robust transactions
+# - Automatic persistent storage
 ```
 
-### 4. Déploiement Railway
+### 4. Railway Deployment
 
-#### Option A: Nouveau projet
+#### Option A: New project
 ```bash
-# Créer un nouveau projet Railway
+# Create a new Railway project
 railway login
 railway init
 railway up
 ```
 
-#### Option B: Migration du projet existant
+#### Option B: Existing project migration
 ```bash
-# Supprimer le service Redis
-# Dans Railway dashboard: Remove Redis service
+# Remove Redis service
+# In Railway dashboard: Remove Redis service
 
-# Déployer la nouvelle version
+# Deploy new version
 git add .
-git commit -m "Migration vers SQLite - réduction des coûts"
+git commit -m "Migration to SQLite - cost reduction"
 git push origin main
 ```
 
-### 5. Configuration Railway
+### 5. Railway Configuration
 
 ```toml
 # railway.toml
@@ -126,9 +126,9 @@ STORAGE_PATH = "/app/storage/attachments"
 REFRESH_INTERVAL = "86400"
 ```
 
-## 🔄 Scripts de migration
+## 🔄 Migration Scripts
 
-### Scripts package.json
+### package.json Scripts
 ```json
 {
   "scripts": {
@@ -140,7 +140,7 @@ REFRESH_INTERVAL = "86400"
 }
 ```
 
-### Variables d'environnement SQLite
+### SQLite Environment Variables
 ```env
 # SQLite configuration
 SQLITE_V1_PATH=data/aircache-v1.sqlite
@@ -154,119 +154,119 @@ STORAGE_PATH=./storage/attachments
 # REDIS_URL=redis://...
 ```
 
-## 🆚 Comparaison des features
+## 🆚 Feature Comparison
 
-| Feature | Redis | SQLite | Avantage |
-|---------|--------|--------|----------|
-| **Performance lectures** | Très rapide | Rapide | Redis |
-| **Performance écritures** | Rapide | Très rapide | SQLite |
+| Feature | Redis | SQLite | Advantage |
+|---------|--------|--------|-----------|
+| **Read Performance** | Very fast | Fast | Redis |
+| **Write Performance** | Fast | Very fast | SQLite |
 | **Transactions** | Limited | ACID | SQLite |
-| **Persistance** | Configurable | Native | SQLite |
-| **Latence** | Réseau | Local | SQLite |
-| **Complexité** | Service externe | Embedded | SQLite |
-| **Coût** | ~12$/mois | 0$ | SQLite |
-| **Backup** | Manuel | Automatique | SQLite |
+| **Persistence** | Configurable | Native | SQLite |
+| **Latency** | Network | Local | SQLite |
+| **Complexity** | External service | Embedded | SQLite |
+| **Cost** | ~$12/month | $0 | SQLite |
+| **Backup** | Manual | Automatic | SQLite |
 
-## 📊 Nouveaux endpoints
+## 📊 New Endpoints
 
-### API SQLite (compatibilité complète)
+### SQLite API (full compatibility)
 ```
 GET  /health                    - Health check
-GET  /api/tables               - Liste des tables
-GET  /api/tables/:table        - Records d'une table
-GET  /api/tables/:table/:id    - Record spécifique
-GET  /api/stats                - Statistiques
-POST /api/refresh              - Refresh manuel
-GET  /api/attachments/:id      - Fichiers attachés ✨ NOUVEAU
+GET  /api/tables               - List tables
+GET  /api/tables/:table        - Records from a table
+GET  /api/tables/:table/:id    - Specific record
+GET  /api/stats                - Statistics
+POST /api/refresh              - Manual refresh
+GET  /api/attachments/:id      - Attached files ✨ NEW
 ```
 
-### Gestion des attachments
+### Attachment Management
 ```bash
-# Les attachments sont automatiquement :
-# - Détectés dans les données Airtable
-# - Téléchargés lors du refresh
-# - Stockés localement dans /storage/attachments
-# - Servis via /api/attachments/:id
+# Attachments are automatically:
+# - Detected in Airtable data
+# - Downloaded during refresh
+# - Stored locally in /storage/attachments
+# - Served via /api/attachments/:id
 ```
 
-## 🚀 Avantages de la migration
+## 🚀 Migration Benefits
 
-### ✅ Techniques
-- **Persistance garantie** : Pas de perte de données en cas de redémarrage
-- **Transactions ACID** : Intégrité des données
-- **Attachments intégrés** : Plus besoin de service externe
-- **Performance locale** : Pas de latence réseau
-- **Backup simple** : Un seul fichier SQLite
+### ✅ Technical
+- **Guaranteed persistence**: No data loss on restart
+- **ACID transactions**: Data integrity
+- **Integrated attachments**: No need for external service
+- **Local performance**: No network latency
+- **Simple backup**: Single SQLite file
 
-### ✅ Économiques
-- **-80% de coûts** sur Railway
-- **Architecture simplifiée** : Moins de composants à maintenir
-- **Scaling prévisible** : Coûts liés uniquement au trafic
+### ✅ Economic
+- **-80% cost reduction** on Railway
+- **Simplified architecture**: Fewer components to maintain
+- **Predictable scaling**: Costs tied only to traffic
 
-### ✅ Opérationnels
-- **Déploiement simplifié** : Une seule application
-- **Debugging facilité** : Tout dans un seul process
-- **Monitoring unifié** : Une seule application à surveiller
+### ✅ Operational
+- **Simplified deployment**: Single application
+- **Easier debugging**: Everything in one process
+- **Unified monitoring**: Only one application to monitor
 
-## ⚠️ Points d'attention
+## ⚠️ Considerations
 
-### Limitations SQLite
-- **Concurrent writes** : SQLite gère les lectures concurrentes mais serialise les écritures
-- **Taille de DB** : Convient jusqu'à plusieurs GB (largement suffisant pour Airtable)
-- **Réseau** : Performance optimale en local uniquement
+### SQLite Limitations
+- **Concurrent writes**: SQLite handles concurrent reads but serializes writes
+- **DB size**: Suitable up to several GB (more than sufficient for Airtable)
+- **Network**: Optimal performance in local only
 
-### Migration risks
-- **Temps d'arrêt** : ~5-10 minutes pendant la migration Railway
-- **Données en vol** : Les données en cache Redis seront perdues (rechargées automatiquement)
-- **Rollback** : Prévoir le retour en arrière si nécessaire
+### Migration Risks
+- **Downtime**: ~5-10 minutes during Railway migration
+- **In-flight data**: Redis cache data will be lost (automatically reloaded)
+- **Rollback**: Plan for rollback if necessary
 
-## 🔙 Procédure de rollback
+## 🔙 Rollback Procedure
 
-Si problème avec SQLite :
+If issues with SQLite:
 
 ```bash
-# 1. Restaurer l'ancienne configuration
+# 1. Restore old configuration
 cp .env.redis.backup .env
 
-# 2. Redéployer la version Redis
+# 2. Redeploy Redis version
 git revert HEAD
 git push origin main
 
-# 3. Recréer le service Redis sur Railway
-# Via dashboard Railway : Add Redis service
+# 3. Recreate Redis service on Railway
+# Via Railway dashboard: Add Redis service
 ```
 
-## 📈 Monitoring post-migration
+## 📈 Post-migration Monitoring
 
-### Métriques à surveiller
-- **Temps de réponse API** : Doit être ≤ Redis
-- **Taille base SQLite** : Croissance normale
-- **Espace disque** : Storage attachments
-- **Refresh duration** : Temps de sync Airtable
+### Metrics to Monitor
+- **API response time**: Should be ≤ Redis
+- **SQLite DB size**: Normal growth
+- **Disk space**: Attachment storage
+- **Refresh duration**: Airtable sync time
 
-### Health checks
+### Health Checks
 ```bash
-# Vérifier la santé SQLite
+# Check SQLite health
 curl http://localhost:3000/health
 
-# Stats détaillées
+# Detailed stats
 curl -H "Authorization: Bearer $TOKEN" \
      http://localhost:3000/api/stats
 ```
 
-## ✅ Checklist de migration
+## ✅ Migration Checklist
 
-- [ ] Backup de l'environnement actuel
-- [ ] Tests locaux SQLite réussis
-- [ ] Benchmark SQLite vs Redis validé
-- [ ] Configuration Railway mise à jour
-- [ ] Variables d'environnement configurées
-- [ ] Déploiement SQLite réussi
-- [ ] Tests API post-déploiement
-- [ ] Suppression service Redis
-- [ ] Monitoring 24h sans problème
-- [ ] Documentation équipe mise à jour
+- [ ] Backup current environment
+- [ ] SQLite local tests successful
+- [ ] SQLite vs Redis benchmark validated
+- [ ] Railway configuration updated
+- [ ] Environment variables configured
+- [ ] SQLite deployment successful
+- [ ] Post-deployment API tests
+- [ ] Redis service removal
+- [ ] 24h monitoring without issues
+- [ ] Team documentation updated
 
 ---
 
-**🎯 Résultat attendu** : Architecture simplifiée, coûts réduits de 80%, performances équivalentes ou meilleures, et stockage des attachments intégré.
+**🎯 Expected Result**: Simplified architecture, 80% cost reduction, equivalent or better performance, and integrated attachment storage.

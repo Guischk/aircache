@@ -1,5 +1,6 @@
 /**
- * SQLite-only API server for Aircache
+ * API server for Aircache
+ * Provides REST endpoints for cached Airtable data
  */
 
 import { handleHealth } from "./handlers/health";
@@ -15,7 +16,7 @@ async function handleRequest(request: Request, worker?: Worker): Promise<Respons
   const pathname = url.pathname;
   const method = request.method;
 
-  console.log(`< ${method} ${pathname} (SQLite)`);
+  console.log(`< ${method} ${pathname}`);
 
   // Handle CORS preflight
   if (method === "OPTIONS") {

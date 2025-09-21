@@ -1,11 +1,11 @@
 /**
- * Middleware d'authentification Bearer Token simple pour l'API
+ * Simple Bearer Token authentication middleware for the API
  */
 
 /**
- * Vérifie l'authentification Bearer Token
- * @param request - Request object de Bun
- * @returns true si authentifié, false sinon
+ * Verifies Bearer Token authentication
+ * @param request - Bun Request object
+ * @returns true if authenticated, false otherwise
  */
 export function isAuthenticated(request: Request): boolean {
   const authHeader = request.headers.get("Authorization");
@@ -14,7 +14,7 @@ export function isAuthenticated(request: Request): boolean {
     return false;
   }
 
-  // Vérifier le format "Bearer <token>"
+  // Check "Bearer <token>" format
   const match = authHeader.match(/^Bearer\s+(.+)$/);
   if (!match) {
     return false;
@@ -24,7 +24,7 @@ export function isAuthenticated(request: Request): boolean {
   const expectedToken = process.env.BEARER_TOKEN;
 
   if (!expectedToken) {
-    console.error("❌ BEARER_TOKEN non configuré dans les variables d'environnement");
+    console.error("❌ BEARER_TOKEN not configured in environment variables");
     return false;
   }
 
@@ -32,9 +32,9 @@ export function isAuthenticated(request: Request): boolean {
 }
 
 /**
- * Middleware wrapper qui retourne une réponse 401 si non authentifié
- * @param request - Request object de Bun
- * @returns Response 401 ou null si authentifié
+ * Middleware wrapper that returns a 401 response if not authenticated
+ * @param request - Bun Request object
+ * @returns 401 Response or null if authenticated
  */
 export function requireAuth(request: Request): Response | null {
   if (!isAuthenticated(request)) {
@@ -54,13 +54,13 @@ export function requireAuth(request: Request): Response | null {
     );
   }
 
-  return null; // Pas d'erreur, authentifié
+  return null; // No error, authenticated
 }
 
 /**
- * Log les tentatives d'authentification pour debug
- * @param request - Request object de Bun
- * @param authenticated - Résultat de l'authentification
+ * Logs authentication attempts for debugging
+ * @param request - Bun Request object
+ * @param authenticated - Authentication result
  */
 export function logAuthAttempt(request: Request, authenticated: boolean): void {
   const authHeader = request.headers.get("Authorization");

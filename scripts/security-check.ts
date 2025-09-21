@@ -1,18 +1,18 @@
 #!/usr/bin/env bun
 
 /**
- * Script de vérification de sécurité
- * Détecte les potentielles fuites de données de production
+ * Security verification script
+ * Detects potential production data leaks
  */
 
 import { AIRTABLE_TABLE_NAMES } from "./src/lib/airtable/schema";
 
 const DANGEROUS_PATTERNS = [
-  // Mots-clés qui pourraient indiquer des données business
+  // Keywords that could indicate business data
   /\b(users|customers|clients|orders|products|companies|employees)\b/i,
-  // Nombres spécifiques qui pourraient révéler des tailles de production
+  // Specific numbers that could reveal production sizes
   /\b(37|716|142|1247)\s+(records?|enregistrements?)\b/i,
-  // Patterns d'API hardcodés
+  // Hardcoded API patterns
   /\/api\/tables\/[A-Z][a-z]+(?:\s[A-Z][a-z]+)*/,
 ];
 
@@ -45,7 +45,7 @@ async function checkFile(filePath: string): Promise<SecurityIssue[]> {
     const lines = content.split('\n');
 
     lines.forEach((line, index) => {
-      // Vérifier les patterns dangereux
+      // Check dangerous patterns
       DANGEROUS_PATTERNS.forEach((pattern, patternIndex) => {
         if (pattern.test(line)) {
           issues.push({
@@ -58,10 +58,10 @@ async function checkFile(filePath: string): Promise<SecurityIssue[]> {
         }
       });
 
-      // Vérifier les références aux vraies tables
+      // Check references to real tables
       AIRTABLE_TABLE_NAMES.forEach(tableName => {
         if (line.includes(`"${tableName}"`) || line.includes(`'${tableName}'`) || line.includes(`\`${tableName}\``)) {
-          // Exception pour les imports du schema
+          // Exception for schema imports
           if (!line.includes('AIRTABLE_TABLE_NAMES') && !filePath.includes('schema.ts')) {
             issues.push({
               file: filePath,
@@ -88,14 +88,14 @@ async function runSecurityCheck(): Promise<void> {
 
   const allIssues: SecurityIssue[] = [];
 
-  // Vérifier chaque fichier
+  // Check each file
   for (const filePath of FILES_TO_CHECK) {
     console.log(`🔍 Checking ${filePath}...`);
     const issues = await checkFile(filePath);
     allIssues.push(...issues);
   }
 
-  // Afficher les résultats
+  // Display results
   console.log("\n📊 Security Check Results");
   console.log("========================");
 
@@ -105,7 +105,7 @@ async function runSecurityCheck(): Promise<void> {
     return;
   }
 
-  // Grouper par sévérité
+  // Group by severity
   const highIssues = allIssues.filter(i => i.severity === "HIGH");
   const mediumIssues = allIssues.filter(i => i.severity === "MEDIUM");
   const lowIssues = allIssues.filter(i => i.severity === "LOW");
@@ -115,7 +115,7 @@ async function runSecurityCheck(): Promise<void> {
   console.log(`   🟡 Medium: ${mediumIssues.length}`);
   console.log(`   🟢 Low: ${lowIssues.length}\n`);
 
-  // Afficher les problèmes critiques
+  // Display critical issues
   if (highIssues.length > 0) {
     console.log("🔴 HIGH SEVERITY ISSUES:");
     highIssues.forEach(issue => {
@@ -125,7 +125,7 @@ async function runSecurityCheck(): Promise<void> {
     });
   }
 
-  // Afficher les problèmes moyens
+  // Display medium issues
   if (mediumIssues.length > 0) {
     console.log("🟡 MEDIUM SEVERITY ISSUES:");
     mediumIssues.forEach(issue => {
@@ -135,7 +135,7 @@ async function runSecurityCheck(): Promise<void> {
     });
   }
 
-  // Recommandations
+  // Recommendations
   console.log("🛠️ RECOMMENDATIONS:");
   console.log("   1. Replace hardcoded table names with dynamic references");
   console.log("   2. Use generic examples (Small Table, Medium Table, etc.)");
@@ -144,13 +144,13 @@ async function runSecurityCheck(): Promise<void> {
 
   console.log("\n📖 See SECURITY.md for detailed guidelines");
 
-  // Exit avec code d'erreur si problèmes critiques
+  // Exit with error code if critical issues
   if (highIssues.length > 0) {
     process.exit(1);
   }
 }
 
-// Exécution si appelé directement
+// Execute if called directly
 if (import.meta.main) {
   await runSecurityCheck();
 }

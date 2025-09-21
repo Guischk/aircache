@@ -1,6 +1,6 @@
 /**
- * SQLite service pour remplacer Redis
- * Utilise bun:sqlite avec architecture dual-database (comme Redis dual-namespace)
+ * SQLite service to replace Redis
+ * Uses bun:sqlite with dual-database architecture (like Redis dual-namespace)
  */
 
 import { Database } from "bun:sqlite";
@@ -48,26 +48,26 @@ class SQLiteService {
   }
 
   /**
-   * Initialise les bases de données (v1, v2 et metadata)
+   * Initialize databases (v1, v2 and metadata)
    */
   async connect(): Promise<void> {
     try {
-      // Créer le dossier data s'il n'existe pas
+      // Create data folder if it doesn't exist
       const dbDir = this.v1Path.split('/').slice(0, -1).join('/');
       if (dbDir) {
         await Bun.write(join(dbDir, '.gitkeep'), '');
       }
 
-      // Initialiser la base de métadonnées
+      // Initialize metadata database
       const metadataDb = new Database(this.metadataPath);
       this.setupPragmas(metadataDb);
       await this.initializeMetadataSchema(metadataDb);
 
-      // Récupérer la version active depuis les métadonnées
+      // Retrieve active version from metadata
       this.currentActive = await this.loadActiveVersionFromMetadata(metadataDb);
       metadataDb.close();
 
-      // Initialiser les deux bases de données
+      // Initialize both databases
       const v1Db = new Database(this.v1Path);
       const v2Db = new Database(this.v2Path);
 
@@ -77,7 +77,7 @@ class SQLiteService {
       await this.initializeDataSchema(v1Db);
       await this.initializeDataSchema(v2Db);
 
-      // Définir quelle base est active/inactive
+      // Define which database is active/inactive
       if (this.currentActive === "v1") {
         this.activeDb = v1Db;
         this.inactiveDb = v2Db;
@@ -86,16 +86,16 @@ class SQLiteService {
         this.inactiveDb = v1Db;
       }
 
-      console.log(`✅ SQLite connecté - Active: ${this.currentActive}`);
-      console.log(`📊 Bases: ${this.v1Path}, ${this.v2Path}`);
+      console.log(`✅ SQLite connected - Active: ${this.currentActive}`);
+      console.log(`📊 Databases: ${this.v1Path}, ${this.v2Path}`);
     } catch (error) {
-      console.error("❌ Erreur connexion SQLite:", error);
+      console.error("❌ SQLite connection error:", error);
       throw error;
     }
   }
 
   /**
-   * Configure les pragmas pour optimiser les performances
+   * Configure pragmas to optimize performance
    */
   private setupPragmas(db: Database): void {
     db.run("PRAGMA journal_mode = WAL");
@@ -105,10 +105,10 @@ class SQLiteService {
   }
 
   /**
-   * Initialise le schéma de métadonnées
+   * Initialize metadata schema
    */
   private async initializeMetadataSchema(db: Database): Promise<void> {
-    // Table pour stocker quelle version est active
+    // Table to store which version is active
     db.run(`
       CREATE TABLE IF NOT EXISTS active_version (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -117,17 +117,17 @@ class SQLiteService {
       )
     `);
 
-    // Insérer la version par défaut si elle n'existe pas
+    // Insert default version if it doesn't exist
     db.run(`
       INSERT OR IGNORE INTO active_version (id, version) VALUES (1, 'v1')
     `);
   }
 
   /**
-   * Initialise le schéma des données (airtable_records + attachments)
+   * Initialize data schema (airtable_records + attachments)
    */
   private async initializeDataSchema(db: Database): Promise<void> {
-    // Table centralisée pour tous les records Airtable
+    // Centralized table for all Airtable records
     db.run(`
       CREATE TABLE IF NOT EXISTS airtable_records (
         id TEXT PRIMARY KEY,
@@ -138,11 +138,11 @@ class SQLiteService {
       )
     `);
 
-    // Index pour optimiser les requêtes
+    // Index to optimize queries
     db.run(`CREATE INDEX IF NOT EXISTS idx_table_name ON airtable_records(table_name)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_record_id ON airtable_records(record_id)`);
 
-    // Table pour les attachments
+    // Table for attachments
     db.run(`
       CREATE TABLE IF NOT EXISTS attachments (
         id TEXT PRIMARY KEY,
@@ -158,11 +158,11 @@ class SQLiteService {
       )
     `);
 
-    // Index pour les attachments
+    // Index for attachments
     db.run(`CREATE INDEX IF NOT EXISTS idx_attachments_record ON attachments(table_name, record_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_attachments_pending ON attachments(local_path) WHERE local_path IS NULL`);
 
-    // Table pour les locks (dans chaque base pour éviter les conflits)
+    // Table for locks (in each database to avoid conflicts)
     db.run(`
       CREATE TABLE IF NOT EXISTS locks (
         name TEXT PRIMARY KEY,
@@ -171,11 +171,11 @@ class SQLiteService {
       )
     `);
 
-    console.log("✅ Schéma de données initialisé");
+    console.log("✅ Data schema initialized");
   }
 
   /**
-   * Charge la version active depuis les métadonnées
+   * Load active version from metadata
    */
   private async loadActiveVersionFromMetadata(metadataDb: Database): Promise<ActiveVersion> {
     const result = metadataDb.prepare(
@@ -186,7 +186,7 @@ class SQLiteService {
   }
 
   /**
-   * Vérifie la santé des connexions
+   * Check connection health
    */
   async healthCheck(): Promise<boolean> {
     try {
@@ -200,7 +200,7 @@ class SQLiteService {
   }
 
   /**
-   * Stocke un record dans la base inactive (pendant le refresh)
+   * Store a record in the inactive database (during refresh)
    */
   async setRecord(tableNorm: string, recordId: string, data: any, useInactive: boolean = false): Promise<void> {
     const db = useInactive ? this.inactiveDb : this.activeDb;
@@ -212,25 +212,25 @@ class SQLiteService {
     await this.transactionOn(db, async () => {
       if (!db) return;
 
-      // Insérer/mettre à jour le record principal
+      // Insert/update main record
       const recordStmt = db.prepare(`
         INSERT OR REPLACE INTO airtable_records (id, table_name, record_id, data, updated_at)
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
       `);
       recordStmt.run(id, tableNorm, recordId, dataStr);
 
-      // Gérer les attachments si présents
+      // Handle attachments if present
       const { extractAttachments } = await import("./schema-generator");
       const attachments = extractAttachments(recordId, data);
 
       if (attachments.length > 0) {
-        // Supprimer les anciens attachments pour ce record
+        // Delete old attachments for this record
         const deleteStmt = db.prepare(`
           DELETE FROM attachments WHERE table_name = ? AND record_id = ?
         `);
         deleteStmt.run(tableNorm, recordId);
 
-        // Insérer les nouveaux attachments
+        // Insert new attachments
         const insertStmt = db.prepare(`
           INSERT OR REPLACE INTO attachments
           (id, table_name, record_id, field_name, original_url, filename, size, type)
@@ -254,7 +254,7 @@ class SQLiteService {
   }
 
   /**
-   * Récupère un record spécifique depuis la base active
+   * Retrieve a specific record from the active database
    */
   async getRecord(tableNorm: string, recordId: string, useInactive: boolean = false): Promise<any | null> {
     const db = useInactive ? this.inactiveDb : this.activeDb;
@@ -272,7 +272,7 @@ class SQLiteService {
   }
 
   /**
-   * Récupère tous les records d'une table depuis la base active
+   * Retrieve all records from a table from the active database
    */
   async getTableRecords(tableNorm: string, useInactive: boolean = false, limit?: number, offset?: number): Promise<any[]> {
     const db = useInactive ? this.inactiveDb : this.activeDb;
@@ -303,7 +303,7 @@ class SQLiteService {
   }
 
   /**
-   * Compte les records d'une table
+   * Count records in a table
    */
   async countTableRecords(tableNorm: string, useInactive: boolean = false): Promise<number> {
     const db = useInactive ? this.inactiveDb : this.activeDb;
@@ -319,7 +319,7 @@ class SQLiteService {
   }
 
   /**
-   * Récupère la liste des tables disponibles
+   * Retrieve list of available tables
    */
   async getTables(useInactive: boolean = false): Promise<string[]> {
     const db = useInactive ? this.inactiveDb : this.activeDb;
@@ -335,7 +335,7 @@ class SQLiteService {
   }
 
   /**
-   * Vide complètement la base inactive (avant refresh)
+   * Completely clear the inactive database (before refresh)
    */
   async clearInactiveDatabase(): Promise<void> {
     if (!this.inactiveDb) throw new Error("Inactive database not connected");
@@ -347,18 +347,18 @@ class SQLiteService {
       this.inactiveDb.run(`DELETE FROM locks`);
     });
 
-    console.log("🧹 Base inactive vidée");
+    console.log("🧹 Inactive database cleared");
   }
 
   /**
-   * Récupère la version active courante
+   * Get current active version
    */
   async getActiveVersion(): Promise<ActiveVersion> {
     return this.currentActive;
   }
 
   /**
-   * Définit la version active dans les métadonnées
+   * Set active version in metadata
    */
   private async setActiveVersionInMetadata(version: ActiveVersion): Promise<void> {
     const metadataDb = new Database(this.metadataPath);
@@ -367,40 +367,40 @@ class SQLiteService {
         UPDATE active_version SET version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1
       `);
       stmt.run(version);
-      console.log(`🔄 Version active basculée vers: ${version}`);
+      console.log(`🔄 Active version switched to: ${version}`);
     } finally {
       metadataDb.close();
     }
   }
 
   /**
-   * Récupère la version inactive
+   * Get inactive version
    */
   async getInactiveVersion(): Promise<ActiveVersion> {
     return this.currentActive === "v1" ? "v2" : "v1";
   }
 
   /**
-   * Bascule atomiquement vers la version inactive (équivalent flipActiveNS)
+   * Atomically switch to inactive version (equivalent to flipActiveNS)
    */
   async flipActiveVersion(): Promise<ActiveVersion> {
     const newActive = await this.getInactiveVersion();
 
-    // Écrire dans les métadonnées
+    // Write to metadata
     await this.setActiveVersionInMetadata(newActive);
 
-    // Basculer les pointeurs en mémoire
+    // Switch memory pointers
     this.currentActive = newActive;
     const temp = this.activeDb;
     this.activeDb = this.inactiveDb;
     this.inactiveDb = temp;
 
-    console.log(`🔄 Basculement atomique terminé vers ${newActive}`);
+    console.log(`🔄 Atomic switch completed to ${newActive}`);
     return newActive;
   }
 
   /**
-   * Stocke un attachment avec chemin local
+   * Store an attachment with local path
    */
   async setAttachmentLocalPath(id: string, localPath: string): Promise<void> {
     if (!this.activeDb) throw new Error("Database not connected");
@@ -415,7 +415,7 @@ class SQLiteService {
   }
 
   /**
-   * Récupère un attachment depuis la base active
+   * Retrieve an attachment from the active database
    */
   async getAttachment(id: string): Promise<Attachment | null> {
     if (!this.activeDb) throw new Error("Database not connected");
@@ -425,7 +425,7 @@ class SQLiteService {
   }
 
   /**
-   * Récupère tous les attachments d'un record
+   * Retrieve all attachments for a record
    */
   async getRecordAttachments(tableName: string, recordId: string, useInactive: boolean = false): Promise<Attachment[]> {
     const db = useInactive ? this.inactiveDb : this.activeDb;
@@ -441,7 +441,7 @@ class SQLiteService {
   }
 
   /**
-   * Récupère tous les attachments non téléchargés
+   * Retrieve all non-downloaded attachments
    */
   async getPendingAttachments(useInactive: boolean = false): Promise<Attachment[]> {
     const db = useInactive ? this.inactiveDb : this.activeDb;
@@ -457,10 +457,10 @@ class SQLiteService {
   }
 
   /**
-   * Marque un attachment comme téléchargé
+   * Mark an attachment as downloaded
    */
   async markAttachmentDownloaded(id: string, localPath: string, size?: number): Promise<void> {
-    // Peut être appelé sur inactive (pendant refresh) ou active
+    // Can be called on inactive (during refresh) or active
     const db = this.inactiveDb || this.activeDb;
     if (!db) throw new Error("Database not connected");
 
@@ -474,7 +474,7 @@ class SQLiteService {
   }
 
   /**
-   * Statistiques globales de la base active
+   * Global statistics of the active database
    */
   async getStats(): Promise<{ totalRecords: number; totalTables: number; dbSize: string }> {
     if (!this.activeDb) throw new Error("Database not connected");
@@ -489,7 +489,7 @@ class SQLiteService {
     `);
     const totalTables = (tablesStmt.get() as { count: number }).count;
 
-    // Taille des deux fichiers DB
+    // Size of both DB files
     const activeFile = Bun.file(this.currentActive === "v1" ? this.v1Path : this.v2Path);
     const inactiveFile = Bun.file(this.currentActive === "v1" ? this.v2Path : this.v1Path);
     const activeSize = await activeFile.size;
@@ -501,7 +501,7 @@ class SQLiteService {
   }
 
   /**
-   * Transaction sur la base active
+   * Transaction on the active database
    */
   async transaction<T>(fn: () => T): Promise<T> {
     if (!this.activeDb) throw new Error("Database not connected");
@@ -510,7 +510,7 @@ class SQLiteService {
   }
 
   /**
-   * Transaction sur une base spécifique
+   * Transaction on a specific database
    */
   async transactionOn<T>(db: Database, fn: () => T): Promise<T> {
     const txn = db.transaction(fn);
@@ -518,7 +518,7 @@ class SQLiteService {
   }
 
   /**
-   * Ferme toutes les connexions
+   * Close all connections
    */
   async close(): Promise<void> {
     if (this.activeDb) {
@@ -529,7 +529,7 @@ class SQLiteService {
       this.inactiveDb.close();
       this.inactiveDb = null;
     }
-    console.log("✅ SQLite connexions fermées");
+    console.log("✅ SQLite connections closed");
   }
 }
 

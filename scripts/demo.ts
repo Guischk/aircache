@@ -1,71 +1,71 @@
 #!/usr/bin/env bun
 
 /**
- * Démonstration rapide du système Aircache
+ * Quick demonstration of the Aircache system
  */
 
 const API_BASE = "http://localhost:3000";
 const BEARER_TOKEN = process.env.BEARER_TOKEN || "demo-token";
 
-console.log("🎯 Démonstration Aircache");
+console.log("🎯 Aircache Demonstration");
 console.log("================================");
 
-// Test de connectivité
+// Connectivity test
 try {
   console.log("🩺 Health check...");
   const healthResponse = await fetch(`${API_BASE}/health`);
   const health = await healthResponse.json();
 
   if (health.success) {
-    console.log(`✅ Système ${health.data.status}`);
-    console.log(`   • Redis: ${health.data.services.redis ? "✅" : "❌"}`);
+    console.log(`✅ System ${health.data.status}`);
+    console.log(`   • Database: ${health.data.services.database ? "✅" : "❌"}`);
     console.log(`   • Uptime: ${Math.round(health.data.uptime)}s`);
   } else {
     console.log("❌ Health check failed");
   }
 
-  // Test API avec auth
-  console.log("\n📋 Tables disponibles...");
+  // API test with authentication
+  console.log("\n📋 Available tables...");
   const tablesResponse = await fetch(`${API_BASE}/api/tables`, {
     headers: { "Authorization": `Bearer ${BEARER_TOKEN}` }
   });
 
   if (tablesResponse.ok) {
     const tables = await tablesResponse.json();
-    console.log(`✅ ${tables.data.tables.length} tables trouvées`);
+    console.log(`✅ ${tables.data.tables.length} tables found`);
     console.log(`   • Namespace: ${tables.meta.namespace}`);
     tables.data.tables.slice(0, 3).forEach((table: string) => {
       console.log(`   • ${table}`);
     });
     if (tables.data.tables.length > 3) {
-      console.log(`   • ... et ${tables.data.tables.length - 3} autres`);
+      console.log(`   • ... and ${tables.data.tables.length - 3} others`);
     }
   } else {
-    console.log("❌ Accès API échoué (vérifiez BEARER_TOKEN)");
+    console.log("❌ API access failed (check BEARER_TOKEN)");
   }
 
-  // Test stats
-  console.log("\n📊 Statistiques du cache...");
+  // Statistics test
+  console.log("\n📊 Cache statistics...");
   const statsResponse = await fetch(`${API_BASE}/api/stats`, {
     headers: { "Authorization": `Bearer ${BEARER_TOKEN}` }
   });
 
   if (statsResponse.ok) {
     const stats = await statsResponse.json();
-    console.log(`✅ Cache actif: ${stats.data.activeNamespace}`);
+    console.log(`✅ Active cache: ${stats.data.activeNamespace}`);
     console.log(`   • Total records: ${stats.data.totalRecords}`);
     console.log(`   • Tables: ${stats.data.totalTables}`);
   }
 
-  console.log("\n🎉 Démonstration terminée !");
-  console.log("📖 Voir README.md pour plus d'informations");
+  console.log("\n🎉 Demonstration completed!");
+  console.log("📖 See README.md for more information");
 
 } catch (error) {
-  console.log("❌ Erreur:", error);
-  console.log("\n💡 Assurez-vous que:");
-  console.log("   • Le serveur est démarré (bun index.ts)");
-  console.log("   • Les variables d'environnement sont configurées");
-  console.log("   • Redis est accessible");
+  console.log("❌ Error:", error);
+  console.log("\n💡 Make sure that:");
+  console.log("   • The server is started (bun index.ts)");
+  console.log("   • Environment variables are configured");
+  console.log("   • Database is accessible");
 }
 
 export {};

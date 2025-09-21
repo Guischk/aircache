@@ -1,9 +1,9 @@
 /**
- * Types TypeScript pour l'API REST
+ * TypeScript types for the REST API
  */
 
 /**
- * Réponse standard de l'API
+ * Standard API response
  */
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -13,13 +13,13 @@ export interface ApiResponse<T = any> {
   code?: string;
   meta?: {
     total?: number;
-    namespace?: string;
+    version?: string;
     timestamp?: string;
   };
 }
 
 /**
- * Réponse d'erreur de l'API
+ * API error response
  */
 export interface ApiError {
   success: false;
@@ -32,24 +32,24 @@ export interface ApiError {
 }
 
 /**
- * Informations de santé du système
+ * System health information
  */
 export interface HealthInfo {
   status: "healthy" | "degraded" | "unhealthy";
   timestamp: string;
   uptime: number;
   services: {
-    redis: boolean;
+    database: boolean;
     worker: boolean;
   };
   version?: string;
 }
 
 /**
- * Statistiques du cache
+ * Cache statistics
  */
 export interface CacheStats {
-  activeNamespace: string;
+  activeVersion: string;
   totalTables: number;
   totalRecords: number;
   lastRefresh?: string;
@@ -62,49 +62,49 @@ export interface CacheStats {
 }
 
 /**
- * Informations sur une table
+ * Table information
  */
 export interface TableInfo {
   name: string;
   normalizedName: string;
   recordCount: number;
-  namespace: string;
+  version: string;
   sampleRecord?: Record<string, any>;
 }
 
 /**
- * Liste des tables disponibles
+ * Available tables list
  */
 export interface TablesListResponse {
   tables: string[];
-  namespace: string;
+  version: string;
   total: number;
 }
 
 /**
- * Records d'une table avec pagination basique
+ * Table records with basic pagination
  */
 export interface TableRecordsResponse {
   records: Record<string, any>[];
   table: string;
-  namespace: string;
+  version: string;
   total: number;
   limit?: number;
   offset?: number;
 }
 
 /**
- * Un record individuel
+ * Individual record
  */
 export interface RecordResponse {
   record: Record<string, any>;
   table: string;
   recordId: string;
-  namespace: string;
+  version: string;
 }
 
 /**
- * Paramètres de requête pour les endpoints
+ * Query parameters for endpoints
  */
 export interface QueryParams {
   limit?: string;
@@ -113,11 +113,11 @@ export interface QueryParams {
 }
 
 /**
- * Headers personnalisés pour les réponses
+ * Custom headers for responses
  */
 export interface ApiHeaders {
   "Content-Type": "application/json";
-  "X-Cache-Namespace"?: string;
+  "X-Cache-Version"?: string;
   "X-Cache-Timestamp"?: string;
   "X-RateLimit-Remaining"?: string;
   "Access-Control-Allow-Origin"?: string;
@@ -126,7 +126,7 @@ export interface ApiHeaders {
 }
 
 /**
- * Résultat d'un test de benchmark individuel
+ * Individual benchmark test result
  */
 export interface BenchmarkResult {
   endpoint: string;
@@ -134,16 +134,16 @@ export interface BenchmarkResult {
   requests: number;
   successCount: number;
   errorCount: number;
-  avgResponseTime: number; // en millisecondes
-  minResponseTime: number; // en millisecondes
-  maxResponseTime: number; // en millisecondes
-  p95ResponseTime: number; // en millisecondes
+  avgResponseTime: number; // in milliseconds
+  minResponseTime: number; // in milliseconds
+  maxResponseTime: number; // in milliseconds
+  p95ResponseTime: number; // in milliseconds
   requestsPerSecond: number;
-  errors: string[]; // Liste des erreurs rencontrées
+  errors: string[]; // List of encountered errors
 }
 
 /**
- * Configuration du benchmark
+ * Benchmark configuration
  */
 export interface BenchmarkConfig {
   requests: number;
@@ -153,15 +153,15 @@ export interface BenchmarkConfig {
 }
 
 /**
- * Réponse complète du benchmark
+ * Complete benchmark response
  */
 export interface BenchmarkResponse {
-  type: string; // Type de benchmark (performance, load, stress)
-  totalTime: number; // Temps total en millisecondes
+  type: string; // Benchmark type (performance, load, stress)
+  totalTime: number; // Total time in milliseconds
   totalRequests: number;
   totalSuccess: number;
   totalErrors: number;
-  successRate: number; // Pourcentage de succès
+  successRate: number; // Success percentage
   results: BenchmarkResult[];
   config: BenchmarkConfig;
 }

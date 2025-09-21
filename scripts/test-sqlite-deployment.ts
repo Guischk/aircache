@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 
 /**
- * Script de test pour valider le déploiement SQLite
- * Vérifie que tous les éléments sont fonctionnels
+ * Test script to validate SQLite deployment
+ * Verifies that all components are functional
  */
 
 const API_BASE = "http://localhost:3000";
@@ -19,10 +19,10 @@ class SQLiteDeploymentTest {
   private results: TestResult[] = [];
 
   async runTests(): Promise<void> {
-    console.log("🧪 Test du déploiement SQLite");
+    console.log("🧪 SQLite deployment test");
     console.log("============================");
 
-    // Tests séquentiels
+    // Sequential tests
     await this.testHealthEndpoint();
     await this.testEnvironmentVariables();
     await this.testDirectoriesCreation();
@@ -30,7 +30,7 @@ class SQLiteDeploymentTest {
     await this.testAPIEndpoints();
     await this.testWorkerFunctionality();
 
-    // Résultats
+    // Results
     this.printResults();
   }
 
@@ -60,7 +60,7 @@ class SQLiteDeploymentTest {
   }
 
   private async testEnvironmentVariables(): Promise<void> {
-    console.log("🔍 Test variables d'environnement...");
+    console.log("🔍 Testing environment variables...");
 
     try {
       const requiredVars = [
@@ -72,10 +72,10 @@ class SQLiteDeploymentTest {
       const missing = requiredVars.filter(varName => !process.env[varName]);
 
       if (missing.length > 0) {
-        throw new Error(`Variables manquantes: ${missing.join(', ')}`);
+        throw new Error(`Missing variables: ${missing.join(', ')}`);
       }
 
-      // Variables SQLite (avec defaults)
+      // SQLite variables (with defaults)
       const sqliteV1Path = process.env.SQLITE_V1_PATH || 'data/aircache-v1.sqlite';
       const sqliteV2Path = process.env.SQLITE_V2_PATH || 'data/aircache-v2.sqlite';
       const sqliteMetadataPath = process.env.SQLITE_METADATA_PATH || 'data/metadata.sqlite';
@@ -103,14 +103,14 @@ class SQLiteDeploymentTest {
   }
 
   private async testDirectoriesCreation(): Promise<void> {
-    console.log("🔍 Test création des dossiers...");
+    console.log("🔍 Testing directory creation...");
 
     try {
       const storagePath = process.env.STORAGE_PATH || './storage/attachments';
       const sqliteV1Path = process.env.SQLITE_V1_PATH || 'data/aircache-v1.sqlite';
       const dataPath = sqliteV1Path.split('/').slice(0, -1).join('/') || 'data';
 
-      // Créer les dossiers s'ils n'existent pas
+      // Create directories if they don't exist
       await Bun.write(`${dataPath}/.gitkeep`, '');
       await Bun.write(`${storagePath}/.gitkeep`, '');
 
@@ -130,7 +130,7 @@ class SQLiteDeploymentTest {
   }
 
   private async testSQLiteConnection(): Promise<void> {
-    console.log("🔍 Test connexion SQLite...");
+    console.log("🔍 Testing SQLite connection...");
 
     try {
       const { sqliteService } = await import("./src/lib/sqlite/index");
@@ -142,7 +142,7 @@ class SQLiteDeploymentTest {
         throw new Error("SQLite health check failed");
       }
 
-      // Test d'écriture/lecture basique
+      // Basic read/write test
       await sqliteService.setRecord("test_table", "test_record", {
         record_id: "test_record",
         test_data: "Hello SQLite"
@@ -170,7 +170,7 @@ class SQLiteDeploymentTest {
   }
 
   private async testAPIEndpoints(): Promise<void> {
-    console.log("🔍 Test endpoints API...");
+    console.log("🔍 Testing API endpoints...");
 
     const endpoints = [
       { path: "/api/tables", method: "GET", needsAuth: true },
@@ -212,10 +212,10 @@ class SQLiteDeploymentTest {
   }
 
   private async testWorkerFunctionality(): Promise<void> {
-    console.log("🔍 Test fonctionnalité worker...");
+    console.log("🔍 Testing worker functionality...");
 
     try {
-      // Test du refresh manuel via API
+      // Manual refresh test via API
       const response = await fetch(`${API_BASE}/api/refresh`, {
         method: "POST",
         headers: {
@@ -245,41 +245,41 @@ class SQLiteDeploymentTest {
   }
 
   private printResults(): void {
-    console.log("\n📊 Résultats des tests");
+    console.log("\n📊 Test results");
     console.log("======================");
 
     const passed = this.results.filter(r => r.success).length;
     const total = this.results.length;
 
-    console.log(`\n✅ Tests réussis: ${passed}/${total}`);
+    console.log(`\n✅ Tests passed: ${passed}/${total}`);
 
     for (const result of this.results) {
       const icon = result.success ? "✅" : "❌";
       console.log(`${icon} ${result.name}`);
 
       if (!result.success && result.error) {
-        console.log(`   Erreur: ${result.error}`);
+        console.log(`   Error: ${result.error}`);
       }
     }
 
     if (passed === total) {
-      console.log("\n🎉 Tous les tests sont passés ! Le déploiement SQLite est prêt.");
-      console.log("\n📋 Étapes suivantes pour Railway:");
+      console.log("\n🎉 All tests passed! SQLite deployment is ready.");
+      console.log("\n📋 Next steps for Railway:");
       console.log("   1. git add .");
-      console.log("   2. git commit -m 'Migration vers SQLite - réduction des coûts'");
+      console.log("   2. git commit -m 'Migration to SQLite - cost reduction'");
       console.log("   3. git push origin main");
-      console.log("   4. Supprimer le service Redis dans Railway dashboard");
-      console.log("   5. Configurer les variables d'environnement Railway");
+      console.log("   4. Remove Redis service in Railway dashboard");
+      console.log("   5. Configure Railway environment variables");
     } else {
-      console.log(`\n⚠️ ${total - passed} test(s) échoué(s). Vérifier la configuration.`);
+      console.log(`\n⚠️ ${total - passed} test(s) failed. Check configuration.`);
       process.exit(1);
     }
   }
 }
 
-// Exécution si appelé directement
+// Execute if called directly
 if (import.meta.main) {
-  console.log("⏳ Démarrage des tests dans 2 secondes...");
+  console.log("⏳ Starting tests in 2 seconds...");
   await Bun.sleep(2000);
 
   const tester = new SQLiteDeploymentTest();

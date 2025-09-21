@@ -1,32 +1,32 @@
 /**
- * Générateur de schéma SQLite basé sur les types Airtable
- * Utilise le schéma Zod pour créer des tables SQLite optimisées
+ * SQLite schema generator based on Airtable types
+ * Uses Zod schema to create optimized SQLite tables
  */
 
 import { AIRTABLE_TABLE_NAMES, type AirtableTableName } from "../airtable/schema";
 import { normalizeKey } from "../utils";
 
 /**
- * Mapping des types Zod vers SQLite
+ * Mapping Zod types to SQLite
  */
 const zodToSqliteType = (zodType: string): string => {
   if (zodType.includes("string")) return "TEXT";
   if (zodType.includes("number")) return "REAL";
-  if (zodType.includes("boolean")) return "INTEGER"; // SQLite stocke les booléens comme 0/1
-  if (zodType.includes("array")) return "TEXT"; // JSON stringifié
-  if (zodType.includes("object")) return "TEXT"; // JSON stringifié
+  if (zodType.includes("boolean")) return "INTEGER"; // SQLite stores booleans as 0/1
+  if (zodType.includes("array")) return "TEXT"; // JSON stringified
+  if (zodType.includes("object")) return "TEXT"; // JSON stringified
   if (zodType.includes("datetime")) return "TEXT"; // ISO string
   if (zodType.includes("date")) return "TEXT"; // YYYY-MM-DD
   return "TEXT"; // Fallback
 };
 
 /**
- * Génère le DDL pour une table Airtable
+ * Generate DDL for an Airtable table
  */
 export function generateTableSchema(tableName: AirtableTableName): string {
   const normalizedName = normalizeKey(tableName);
 
-  // Table de base pour stocker les données JSON (approche simple)
+  // Base table to store JSON data (simple approach)
   return `
     CREATE TABLE IF NOT EXISTS "${normalizedName}" (
       record_id TEXT PRIMARY KEY,
@@ -42,12 +42,12 @@ export function generateTableSchema(tableName: AirtableTableName): string {
 }
 
 /**
- * Génère une table optimisée avec détection d'attachments
+ * Generate an optimized table with attachment detection
  */
 export function generateOptimizedTableSchema(tableName: AirtableTableName, sampleData?: any): string {
   const normalizedName = normalizeKey(tableName);
 
-  // Détecter les champs d'attachments dans les données d'exemple
+  // Detect attachment fields in sample data
   const hasAttachments = sampleData && detectAttachmentFields(sampleData);
 
   let schema = `
@@ -59,7 +59,7 @@ export function generateOptimizedTableSchema(tableName: AirtableTableName, sampl
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   `;
 
-  // Ajouter des colonnes dédiées pour les champs fréquemment utilisés
+  // Add dedicated columns for frequently used fields
   if (tableName === "Users") {
     schema += `,
       email TEXT,
@@ -79,7 +79,7 @@ export function generateOptimizedTableSchema(tableName: AirtableTableName, sampl
       created TEXT`;
   }
 
-  // Ajouter une table d'attachments si nécessaire
+  // Add an attachments table if necessary
   schema += `
     );
 
@@ -112,7 +112,7 @@ export function generateOptimizedTableSchema(tableName: AirtableTableName, sampl
 }
 
 /**
- * Détecte si un objet contient des champs d'attachments
+ * Detect if an object contains attachment fields
  */
 function detectAttachmentFields(data: any): boolean {
   if (!data || typeof data !== "object") return false;
@@ -130,7 +130,7 @@ function detectAttachmentFields(data: any): boolean {
 }
 
 /**
- * Extrait les attachments d'un record
+ * Extract attachments from a record
  */
 export function extractAttachments(recordId: string, data: any): Array<{
   id: string;
@@ -168,11 +168,11 @@ export function extractAttachments(recordId: string, data: any): Array<{
 }
 
 /**
- * Génère tout le schéma SQLite pour toutes les tables Airtable
+ * Generate the complete SQLite schema for all Airtable tables
  */
 export function generateFullSchema(): string {
   let fullSchema = `
-    -- Tables principales pour métadonnées
+    -- Main tables for metadata
     CREATE TABLE IF NOT EXISTS cache_metadata (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -185,7 +185,7 @@ export function generateFullSchema(): string {
       expires_at DATETIME NOT NULL
     );
 
-    -- Table globale pour les attachments
+    -- Global table for attachments
     CREATE TABLE IF NOT EXISTS attachments (
       id TEXT PRIMARY KEY,
       table_name TEXT NOT NULL,
@@ -205,7 +205,7 @@ export function generateFullSchema(): string {
 
   `;
 
-  // Générer les tables pour chaque table Airtable
+  // Generate tables for each Airtable table
   for (const tableName of AIRTABLE_TABLE_NAMES) {
     fullSchema += generateTableSchema(tableName);
     fullSchema += "\n";
@@ -215,7 +215,7 @@ export function generateFullSchema(): string {
 }
 
 /**
- * Options de configuration pour les tables
+ * Configuration options for tables
  */
 export interface TableConfig {
   enableAttachments: boolean;
@@ -224,7 +224,7 @@ export interface TableConfig {
 }
 
 /**
- * Configuration par défaut pour chaque table
+ * Default configuration for each table
  */
 export const DEFAULT_TABLE_CONFIGS: Record<AirtableTableName, TableConfig> = {
   "Users": { enableAttachments: true, optimizedColumns: true, enableFullTextSearch: true },

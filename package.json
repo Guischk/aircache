@@ -32,7 +32,7 @@
     "test:watch": "bun test tests/ --watch",
     "test:coverage": "bun test tests/ --coverage",
     "test:ci": "bun run test:all -- --reporter=junit --outputFile=test-results.xml",
-    "validate": "bun run test:complete && bun run security-check && echo '✅ Validation réussie'",
+    "validate": "bun run test:complete && bun run security-check && echo '✅ Validation successful'",
     "prepublishOnly": "bun run test:complete && bun run security-check",
     "publish:check": "bun run validate"
   },

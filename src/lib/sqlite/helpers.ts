@@ -1,13 +1,13 @@
 /**
- * Helpers SQLite équivalents aux helpers Redis
- * Maintient la même interface pour faciliter la migration
+ * SQLite helper functions for database operations
+ * Provides high-level interface for cache management
  */
 
 import { sqliteService, type ActiveVersion } from "./index";
 
 /**
- * Equivalent de withLock pour SQLite
- * Utilise une table de locks dans la base active
+ * Implements distributed locking using SQLite
+ * Uses a locks table in the active database
  */
 export async function withLock<T>(
   name: string,
@@ -15,30 +15,30 @@ export async function withLock<T>(
   fn: () => Promise<T>
 ): Promise<T | null> {
   try {
-    console.log(`🔒 Tentative d'acquisition du lock: ${name}`);
+    console.log(`🔒 Attempting to acquire lock: ${name}`);
 
     const lockId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + ttl * 1000).toISOString();
 
-    // Tentative d'acquisition du lock sur la base active
+    // Attempt to acquire lock on active database
     const acquired = await sqliteService.transaction(() => {
       if (!sqliteService['activeDb']) return false;
 
-      // Nettoyer les locks expirés d'abord
+      // Clean up expired locks first
       sqliteService['activeDb'].prepare(`
         DELETE FROM locks WHERE expires_at <= CURRENT_TIMESTAMP
       `).run();
 
-      // Vérifier si le lock existe déjà
+      // Check if lock already exists
       const existingLock = sqliteService['activeDb'].prepare(`
         SELECT name FROM locks WHERE name = ? AND expires_at > CURRENT_TIMESTAMP
       `).get(name);
 
       if (existingLock) {
-        return false; // Lock déjà pris
+        return false; // Lock already taken
       }
 
-      // Acquérir le lock
+      // Acquire the lock
       sqliteService['activeDb'].prepare(`
         INSERT OR REPLACE INTO locks (name, lock_id, expires_at)
         VALUES (?, ?, ?)
@@ -48,19 +48,19 @@ export async function withLock<T>(
     });
 
     if (!acquired) {
-      console.log(`⏸️ Lock ${name} déjà pris, skip`);
+      console.log(`⏸️ Lock ${name} already taken, skipping`);
       return null;
     }
 
-    console.log(`✅ Lock ${name} acquis pour ${ttl}s`);
+    console.log(`✅ Lock ${name} acquired for ${ttl}s`);
 
     try {
-      // Exécuter la fonction
+      // Execute the function
       const result = await fn();
-      console.log(`🏁 Lock ${name} - opération terminée avec succès`);
+      console.log(`🏁 Lock ${name} - operation completed successfully`);
       return result;
     } finally {
-      // Libérer le lock
+      // Release the lock
       try {
         await sqliteService.transaction(() => {
           if (!sqliteService['activeDb']) return;
@@ -68,52 +68,52 @@ export async function withLock<T>(
             DELETE FROM locks WHERE name = ? AND lock_id = ?
           `).run(name, lockId);
         });
-        console.log(`🔓 Lock ${name} libéré`);
+        console.log(`🔓 Lock ${name} released`);
       } catch (unlockError) {
-        console.error(`⚠️ Erreur lors de la libération du lock ${name}:`, unlockError);
+        console.error(`⚠️ Error releasing lock ${name}:`, unlockError);
       }
     }
 
   } catch (error) {
-    console.error(`❌ Erreur dans withLock "${name}":`, error);
+    console.error(`❌ Error in withLock "${name}":`, error);
     throw error;
   }
 }
 
-// Les fonctions ensureLocksTable et cleanExpiredLocks ne sont plus nécessaires
-// car le schéma est créé automatiquement et le cleanup est fait inline
+// Functions ensureLocksTable and cleanExpiredLocks are no longer needed
+// as schema is created automatically and cleanup is done inline
 
 /**
- * Récupère la version active (équivalent getActiveNamespace)
+ * Gets the active version (equivalent to getActiveNamespace)
  */
 export async function getActiveVersion(): Promise<ActiveVersion> {
   return await sqliteService.getActiveVersion();
 }
 
 /**
- * Récupère la version inactive
+ * Gets the inactive version
  */
 export async function getInactiveVersion(): Promise<ActiveVersion> {
   return await sqliteService.getInactiveVersion();
 }
 
 /**
- * Bascule vers la version inactive (équivalent flipActiveNS)
+ * Switches to the inactive version (equivalent to flipActiveNS)
  */
 export async function flipActiveVersion(): Promise<ActiveVersion> {
   return await sqliteService.flipActiveVersion();
 }
 
 /**
- * Équivalent keyRecord - génère un identifiant unique pour un record
+ * Equivalent to keyRecord - generates a unique identifier for a record
  */
 export function recordKey(tableNorm: string, recordId: string): string {
   return `${tableNorm}:${recordId}`;
 }
 
 /**
- * Stocke un record (équivalent Redis SET)
- * useInactive: true pour stocker dans la base inactive (refresh)
+ * Stores a record (equivalent to Redis SET)
+ * useInactive: true to store in inactive database (refresh)
  */
 export async function setRecord(
   tableNorm: string,
@@ -125,7 +125,7 @@ export async function setRecord(
 }
 
 /**
- * Récupère un record (équivalent Redis GET)
+ * Retrieves a record (equivalent to Redis GET)
  */
 export async function getRecord(
   tableNorm: string,
@@ -136,7 +136,7 @@ export async function getRecord(
 }
 
 /**
- * Récupère tous les records d'une table (équivalent Redis SMEMBERS + MGET)
+ * Retrieves all records from a table (equivalent to Redis SMEMBERS + MGET)
  */
 export async function getTableRecords(
   tableNorm: string,
@@ -148,7 +148,7 @@ export async function getTableRecords(
 }
 
 /**
- * Compte les records d'une table (équivalent Redis SCARD)
+ * Counts records in a table (equivalent to Redis SCARD)
  */
 export async function countTableRecords(
   tableNorm: string,
@@ -158,62 +158,62 @@ export async function countTableRecords(
 }
 
 /**
- * Récupère la liste des tables (équivalent Redis SMEMBERS sur keyTables)
+ * Retrieves the list of tables (equivalent to Redis SMEMBERS on keyTables)
  */
 export async function getTables(useInactive: boolean = false): Promise<string[]> {
   return await sqliteService.getTables(useInactive);
 }
 
 /**
- * Vide la base inactive (équivalent au nettoyage Redis)
+ * Clears the inactive database (equivalent to Redis cleanup)
  */
 export async function clearVersion(): Promise<void> {
   await sqliteService.clearInactiveDatabase();
 }
 
 /**
- * Marque un attachment comme téléchargé avec son chemin local
+ * Marks an attachment as downloaded with its local path
  */
 export async function setAttachmentLocalPath(id: string, localPath: string): Promise<void> {
   await sqliteService.setAttachmentLocalPath(id, localPath);
 }
 
 /**
- * Récupère un attachment
+ * Retrieves an attachment
  */
 export async function getAttachment(id: string) {
   return await sqliteService.getAttachment(id);
 }
 
 /**
- * Récupère tous les attachments d'un record
+ * Retrieves all attachments for a record
  */
 export async function getRecordAttachments(tableName: string, recordId: string, useInactive: boolean = false) {
   return await sqliteService.getRecordAttachments(tableName, recordId, useInactive);
 }
 
 /**
- * Récupère tous les attachments en attente de téléchargement
+ * Retrieves all attachments pending download
  */
 export async function getPendingAttachments(useInactive: boolean = false) {
   return await sqliteService.getPendingAttachments(useInactive);
 }
 
 /**
- * Marque un attachment comme téléchargé
+ * Marks an attachment as downloaded
  */
 export async function markAttachmentDownloaded(id: string, localPath: string, size?: number): Promise<void> {
   await sqliteService.markAttachmentDownloaded(id, localPath, size);
 }
 
 /**
- * Statistiques globales du cache
+ * Global cache statistics
  */
 export async function getCacheStats() {
   const stats = await sqliteService.getStats();
   const tables = await getTables();
 
-  // Statistiques détaillées par table
+  // Detailed statistics by table
   const tableStats = [];
   for (const table of tables) {
     const count = await countTableRecords(table);

@@ -15,8 +15,6 @@ Default to using Bun instead of Node.js.
 
 - `Bun.serve()` supports WebSockets, HTTPS, and routes. Don't use `express`.
 - `bun:sqlite` for SQLite. Don't use `better-sqlite3`.
-- `Bun.redis` for Redis. Don't use `ioredis`.
-- `Bun.sql` for Postgres. Don't use `pg` or `postgres.js`.
 - `WebSocket` is built-in. Don't use `ws`.
 - Prefer `Bun.file` over `node:fs`'s readFile/writeFile
 - Bun.$`ls` instead of execa.
@@ -110,66 +108,67 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 
 ## Project Architecture
 
-This is an Airtable cache service that syncs data from Airtable to Redis using a dual-namespace strategy for zero-downtime updates.
+This is an Airtable cache service that syncs data from Airtable to SQLite using a dual-database strategy for zero-downtime updates.
 
 ### Core Components
 
-- **Main Process** (`index.ts`): Manages a worker that refreshes data every 5 minutes
-- **Worker** (`src/worker/index.ts`): Handles the actual data sync from Airtable to Redis
+- **Main Process** (`index.ts`): Manages a worker that refreshes data periodically
+- **Server** (`src/server/index.ts`): Main server entry point and configuration
+- **Worker** (`src/worker/index.ts`): Handles the actual data sync from Airtable to SQLite
 - **Airtable Client** (`src/lib/airtable/index.ts`): Configured Airtable base connection
-- **Redis Helpers** (`src/lib/redis/helpers.ts`): Key generation and namespace management utilities
+- **SQLite Helpers** (`src/lib/sqlite/helpers.ts`): Database management and versioning utilities
 - **Schema** (`src/lib/airtable/schema.ts`): Generated Zod schemas for all Airtable tables
 
 ### Key Architecture Patterns
 
-**Dual Namespace Strategy**: The system uses `v1` and `v2` Redis namespaces to enable atomic cache updates:
-- Active namespace serves current data
-- Inactive namespace is populated with fresh data
-- After sync completes, namespaces are flipped atomically
+**Dual Database Strategy**: The system uses `v1` and `v2` SQLite databases to enable atomic cache updates:
+- Active database serves current data
+- Inactive database is populated with fresh data
+- After sync completes, databases are flipped atomically
 - Prevents serving stale data during refresh cycles
 
 **Worker-Based Refresh**: Data refresh runs in a Web Worker to avoid blocking the main thread during large data sync operations.
 
-**Distributed Locking**: Uses Redis locks to prevent concurrent refresh operations across multiple processes/workers.
+**File-Based Locking**: Uses file system locks to prevent concurrent refresh operations across multiple processes/workers.
 
 ### Environment Configuration
 
 Required environment variables:
 - `AIRTABLE_PERSONAL_TOKEN`: Airtable API authentication
 - `AIRTABLE_BASE_ID`: Target Airtable base identifier
-- `REDIS_URL`: Redis connection string
-- `CACHE_TTL`: Cache expiration time in seconds (default: 5400)
-- `REFRESH_INTERVAL`: How often to refresh cache in seconds (default: 5400)
+- `SQLITE_PATH`: SQLite database path (default: ./data)
+- `STORAGE_PATH`: Attachments storage path (default: ./data/attachments)
+- `REFRESH_INTERVAL`: How often to refresh cache in seconds (default: 86400)
 - `BEARER_TOKEN`: API authentication token
+- `PORT`: Server port (default: 3000)
 
 ### Development Commands
 
 - `bun run airtable:types`: Generate TypeScript types from Airtable schema
 - `bun index.ts`: Start the cache service
 - `bun --hot index.ts`: Start with hot reload during development
+- `bun test`: Run all tests
+- `bun run demo`: Run demonstration script
 
 ### Security Considerations
 
 The following files contain sensitive data and are git-ignored:
 - `.env`
-- `src/airtable/config.ts`
-- `src/airtable/schema.ts` (contains actual schema, not the generated one)
-- `src/airtable/secrets.ts`
-- `cache/` directory
+- `data/` directory (SQLite databases)
 - `*.cache.json` files
 
 ### Data Flow
 
 1. Main process starts worker and schedules periodic refreshes
-2. Worker acquires distributed lock to prevent concurrent operations
+2. Worker acquires file-based lock to prevent concurrent operations
 3. Worker fetches all data from configured Airtable tables
-4. Data is flattened using `airtable-types-gen` and stored in inactive Redis namespace
-5. After all data is synced, active namespace pointer is flipped atomically
-6. Old data expires naturally via TTL
+4. Data is flattened using `airtable-types-gen` and stored in inactive SQLite database
+5. After all data is synced, active database pointer is flipped atomically
+6. Old database is cleaned up for next refresh cycle
 
 ### Key Utilities
 
-- `normalizeKey()`: Sanitizes strings for Redis key usage
-- `keyRecord()`, `keyIndex()`, `keyTables()`: Generate consistent Redis keys
-- `withLock()`: Provides distributed locking functionality
-- `flipActiveNS()`: Atomic namespace switching
+- `normalizeKey()`: Sanitizes strings for database usage
+- `sqliteService`: Main SQLite service for database operations
+- `getActiveVersion()`, `flipActiveVersion()`: Database version management
+- File-based locking for concurrent operation prevention

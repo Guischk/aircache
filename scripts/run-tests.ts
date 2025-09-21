@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 
 /**
- * Script d'exécution des tests complets pour Aircache
- * Exécute tous les tests dans l'ordre approprié
+ * Complete test execution script for Aircache
+ * Executes all tests in the appropriate order
  */
 
 import { execSync, spawn } from "child_process";
@@ -21,35 +21,35 @@ interface TestSuite {
   command: string;
   description: string;
   required: boolean;
-  timeout: number; // en secondes
+  timeout: number; // in seconds
 }
 
 const TEST_SUITES: TestSuite[] = [
   {
     name: "API Tests",
     command: "bun test tests/api.test.ts --outdir dist",
-    description: "Tests unitaires et fonctionnels de l'API",
+    description: "Unit and functional API tests",
     required: true,
     timeout: 60
   },
   {
     name: "Integration Tests",
     command: "bun test tests/integration.test.ts --outdir dist",
-    description: "Tests d'intégration end-to-end",
+    description: "End-to-end integration tests",
     required: true,
     timeout: 120
   },
   {
     name: "Security Tests",
     command: "bun test tests/security.test.ts --outdir dist",
-    description: "Tests de sécurité et vulnérabilités",
+    description: "Security tests and vulnerabilities",
     required: true,
     timeout: 60
   },
   {
     name: "Performance Tests",
     command: "bun test tests/performance.test.ts --outdir dist",
-    description: "Tests de performance et benchmarks",
+    description: "Performance tests and benchmarks",
     required: false,
     timeout: 180
   }
@@ -102,20 +102,20 @@ function info(message: string) {
 async function runTestSuite(suite: TestSuite): Promise<TestResult> {
   const startTime = Date.now();
 
-  info(`Démarrage de ${suite.name}...`);
+  info(`Starting ${suite.name}...`);
 
   try {
-    // Pour simplifier, on va juste vérifier que les fichiers de test existent et sont syntaxiquement corrects
+    // For simplicity, we'll just verify that test files exist and are syntactically correct
     const fs = await import("fs");
     const path = await import("path");
 
-    const testFile = path.join(process.cwd(), suite.command.split(" ")[2]); // Extraire le nom du fichier
+    const testFile = path.join(process.cwd(), suite.command.split(" ")[2]); // Extract file name
 
     if (!fs.existsSync(testFile)) {
-      throw new Error(`Fichier de test non trouvé: ${testFile}`);
+      throw new Error(`Test file not found: ${testFile}`);
     }
 
-    // Simuler un test réussi pour l'instant
+    // Simulate a successful test for now
     await new Promise(resolve => setTimeout(resolve, 100));
 
     return {
@@ -136,7 +136,7 @@ async function runTestSuite(suite: TestSuite): Promise<TestResult> {
 }
 
 async function checkPrerequisites(): Promise<boolean> {
-  section("Vérification des prérequis");
+  section("Prerequisites verification");
 
   const prerequisites = [
     { name: "Bun runtime", check: () => typeof Bun !== "undefined" },
@@ -144,7 +144,7 @@ async function checkPrerequisites(): Promise<boolean> {
     { name: "Test files", check: () => existsSync("tests/api.test.ts") },
     { name: "Source code", check: () => existsSync("src/server/index.ts") },
     { name: "SQLite database", check: () => {
-      // Vérifier tous les formats possibles de base de données SQLite
+      // Check all possible SQLite database formats
       const sqliteFiles = [
         "data/aircache.db",
         "data/aircache-v1.db",
@@ -155,8 +155,8 @@ async function checkPrerequisites(): Promise<boolean> {
       const hasDatabase = sqliteFiles.some(file => existsSync(file));
 
       if (!hasDatabase) {
-        warning("⚠️ Aucune base de données SQLite détectée - les tests créeront une base de test");
-        return true; // Autoriser l'exécution même sans base existante
+        warning("⚠️ No SQLite database detected - tests will create a test database");
+        return true; // Allow execution even without existing database
       }
 
       return true;
@@ -170,7 +170,7 @@ async function checkPrerequisites(): Promise<boolean> {
     if (passed) {
       success(`${prereq.name} - OK`);
     } else {
-      error(`${prereq.name} - MANQUANT`);
+      error(`${prereq.name} - MISSING`);
       allPassed = false;
     }
   }
@@ -180,11 +180,11 @@ async function checkPrerequisites(): Promise<boolean> {
 
 async function main() {
   console.clear();
-  banner("🧪 Suite de Tests Aircache");
+  banner("🧪 Aircache Test Suite");
 
-  // Vérifier les prérequis
+  // Check prerequisites
   if (!await checkPrerequisites()) {
-    error("Certains prérequis ne sont pas satisfaits. Arrêt des tests.");
+    error("Some prerequisites are not met. Stopping tests.");
     process.exit(1);
   }
 
@@ -192,7 +192,7 @@ async function main() {
   let requiredTestsPassed = 0;
   let requiredTestsCount = 0;
 
-  // Exécuter chaque suite de tests
+  // Execute each test suite
   for (const suite of TEST_SUITES) {
     section(`${suite.name} - ${suite.description}`);
 
@@ -204,7 +204,7 @@ async function main() {
     results.push(result);
 
     const duration = (result.duration / 1000).toFixed(2);
-    const status = result.passed ? "RÉUSSI" : "ÉCHEC";
+    const status = result.passed ? "PASSED" : "FAILED";
 
     if (result.passed) {
       success(`${suite.name} - ${status} (${duration}s)`);
@@ -214,65 +214,65 @@ async function main() {
     } else {
       error(`${suite.name} - ${status} (${duration}s)`);
       if (result.error) {
-        console.log(`${COLORS.red}Erreur: ${result.error}${COLORS.reset}`);
+        console.log(`${COLORS.red}Error: ${result.error}${COLORS.reset}`);
       }
     }
   }
 
-  // Résumé final
-  section("Résumé des Tests");
+  // Final summary
+  section("Test Summary");
 
   const totalTests = results.length;
   const passedTests = results.filter(r => r.passed).length;
   const failedTests = totalTests - passedTests;
   const totalDuration = results.reduce((sum, r) => sum + r.duration, 0);
 
-  info(`Tests totaux: ${totalTests}`);
-  info(`Tests réussis: ${passedTests}`);
-  info(`Tests échoués: ${failedTests}`);
-  info(`Tests requis réussis: ${requiredTestsPassed}/${requiredTestsCount}`);
-  info(`Durée totale: ${(totalDuration / 1000).toFixed(2)}s`);
+  info(`Total tests: ${totalTests}`);
+  info(`Tests passed: ${passedTests}`);
+  info(`Tests failed: ${failedTests}`);
+  info(`Required tests passed: ${requiredTestsPassed}/${requiredTestsCount}`);
+  info(`Total duration: ${(totalDuration / 1000).toFixed(2)}s`);
 
-  // Calcul du score
+  // Score calculation
   const score = Math.round((passedTests / totalTests) * 100);
   const requiredScore = Math.round((requiredTestsPassed / requiredTestsCount) * 100);
 
   if (requiredTestsPassed === requiredTestsCount) {
-    success(`Score des tests requis: ${requiredScore}%`);
+    success(`Required tests score: ${requiredScore}%`);
   } else {
-    error(`Score des tests requis: ${requiredScore}% (requis: 100%)`);
+    error(`Required tests score: ${requiredScore}% (required: 100%)`);
   }
 
-  success(`Score global: ${score}%`);
+  success(`Overall score: ${score}%`);
 
-  // Verdict final
+  // Final verdict
   section("Verdict");
 
   if (requiredTestsPassed === requiredTestsCount) {
-    success("🎉 Tous les tests requis sont passés !");
-    success("✅ Le projet est prêt pour la publication.");
+    success("🎉 All required tests passed!");
+    success("✅ The project is ready for publication.");
     process.exit(0);
   } else {
-    error("❌ Certains tests requis ont échoué.");
-    error("🔧 Le projet nécessite des corrections avant publication.");
+    error("❌ Some required tests failed.");
+    error("🔧 The project requires fixes before publication.");
     process.exit(1);
   }
 }
 
-// Gestion des signaux d'interruption
+// Interrupt signal handling
 process.on("SIGINT", () => {
-  console.log("\n🛑 Tests interrompus par l'utilisateur");
+  console.log("\n🛑 Tests interrupted by user");
   process.exit(130);
 });
 
 process.on("SIGTERM", () => {
-  console.log("\n🛑 Tests terminés par le système");
+  console.log("\n🛑 Tests terminated by system");
   process.exit(0);
 });
 
-// Démarrer l'exécution
+// Start execution
 main().catch((err) => {
-  error(`Erreur fatale: ${err.message}`);
+  error(`Fatal error: ${err.message}`);
   console.error(err);
   process.exit(1);
 });

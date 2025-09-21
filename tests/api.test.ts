@@ -119,7 +119,7 @@ async function apiRequest<T = any>(endpoint: string, options: {
   }
 }
 
-// Helper pour attendre que le serveur soit prêt
+// Helper to wait for server to be ready
 async function waitForServer(timeout = 10000): Promise<boolean> {
   const startTime = Date.now();
 
@@ -136,11 +136,11 @@ async function waitForServer(timeout = 10000): Promise<boolean> {
   return false;
 }
 
-// Démarrage du serveur avant tous les tests
+// Start server before all tests
 beforeAll(async () => {
-  console.log("🚀 Démarrage du serveur de test...");
+  console.log("🚀 Starting test server...");
 
-  // Démarrer le serveur sur un port différent pour les tests
+  // Start server on different port for tests
   serverProcess = spawn(["bun", "index.ts"], {
     env: {
       ...process.env,
@@ -155,20 +155,20 @@ beforeAll(async () => {
   serverStarted = await waitForServer(TEST_CONFIG.timeout);
 
       if (!serverStarted) {
-        throw new Error("❌ Impossible de démarrer le serveur de test");
+        throw new Error("❌ Unable to start test server");
       }
 
-      // Attendre que la base de données soit initialisée
-      console.log("🔄 Attente de l'initialisation de la base de données...");
+      // Wait for database initialization
+      console.log("🔄 Waiting for database initialization...");
       await new Promise(resolve => setTimeout(resolve, 3000));
 
-  console.log("✅ Serveur de test démarré");
+  console.log("✅ Test server started");
 });
 
-// Arrêt du serveur après tous les tests
+// Stop server after all tests
 afterAll(async () => {
   if (serverProcess) {
-    console.log("🛑 Arrêt du serveur de test...");
+    console.log("🛑 Stopping test server...");
     serverProcess.kill();
     await new Promise(resolve => setTimeout(resolve, 1000));
   }

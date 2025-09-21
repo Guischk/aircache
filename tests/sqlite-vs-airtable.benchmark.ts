@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 
 /**
- * Benchmark comparatif SQLite Cache vs Airtable Direct
- * Démontre la valeur ajoutée du cache SQLite local
+ * Comparative Benchmark SQLite Cache vs Airtable Direct
+ * Demonstrates the added value of local SQLite cache
  */
 
 import { base } from "../src/lib/airtable/index";
@@ -47,7 +47,7 @@ class SQLiteVsAirtableBenchmark {
   private tableAliases: Map<string, string> = new Map();
 
   constructor() {
-    // Créer des aliases anonymes pour les tables
+    // Create anonymous aliases for tables
     this.initializeTableAliases();
   }
 
@@ -61,27 +61,27 @@ class SQLiteVsAirtableBenchmark {
   async runBenchmark(): Promise<void> {
     console.log("🏁 SQLite vs Airtable Performance Benchmark");
     console.log("============================================");
-    console.log(`📊 Testant ${this.tableAliases.size} tables avec plusieurs scénarios`);
+    console.log(`📊 Testing ${this.tableAliases.size} tables with multiple scenarios`);
     console.log(`🌐 API Base: ${API_BASE}`);
-    console.log(`🔐 Bearer Token: ${BEARER_TOKEN ? 'Configuré' : 'Non configuré'}\n`);
+    console.log(`🔐 Bearer Token: ${BEARER_TOKEN ? 'Configured' : 'Not configured'}\n`);
 
-    // Initialiser SQLite
+    // Initialize SQLite
     await this.setupSQLite();
 
-    // Scenarios de test
+    // Test scenarios
     const scenarios = [
-      { name: "single_record", description: "Requête d'un seul enregistrement" },
-      { name: "small_batch", description: "10 enregistrements" },
-      { name: "medium_batch", description: "50 enregistrements" },
-      { name: "table_scan", description: "Tous les enregistrements d'une table" }
+      { name: "single_record", description: "Single record query" },
+      { name: "small_batch", description: "10 records" },
+      { name: "medium_batch", description: "50 records" },
+      { name: "table_scan", description: "All records from a table" }
     ];
 
     for (const [tableName, alias] of this.tableAliases) {
-      console.log(`\n🔍 Test de la table ${alias} (${tableName})`);
+      console.log(`\n🔍 Testing table ${alias} (${tableName})`);
 
       for (const scenario of scenarios) {
         try {
-          console.log(`   📋 Scénario: ${scenario.description}`);
+          console.log(`   📋 Scenario: ${scenario.description}`);
 
           const sqliteResult = await this.benchmarkSQLite(tableName, scenario.name, alias);
           const airtableResult = await this.benchmarkAirtable(tableName, scenario.name, alias);
@@ -98,7 +98,7 @@ class SQLiteVsAirtableBenchmark {
           this.printScenarioResult(comparison);
 
         } catch (error) {
-          console.error(`   ❌ Erreur dans le scénario ${scenario.name}:`, error);
+          console.error(`   ❌ Error in scenario ${scenario.name}:`, error);
         }
       }
     }
@@ -107,26 +107,26 @@ class SQLiteVsAirtableBenchmark {
   }
 
   private async setupSQLite(): Promise<void> {
-    console.log("🔄 Vérification de la disponibilité de l'API SQLite...");
+    console.log("🔄 Checking SQLite API availability...");
     
-    // Vérifier que l'API est disponible
+    // Check that API is available
     try {
       const healthResponse = await fetch(`${API_BASE}health`);
       if (!healthResponse.ok) {
         throw new Error(`API health check failed: ${healthResponse.status}`);
       }
-      console.log("✅ API SQLite disponible");
+      console.log("✅ SQLite API available");
     } catch (error) {
-      console.error("❌ API SQLite non disponible. Assurez-vous que le serveur est démarré:");
+      console.error("❌ SQLite API not available. Make sure the server is started:");
       console.error("   bun run dev:sqlite");
-      console.error("   ou");
+      console.error("   or");
       console.error("   bun run start:sqlite");
       throw error;
     }
 
-    // Initialiser SQLite local pour les données de test si nécessaire
+    // Initialize local SQLite for test data if needed
     await sqliteService.connect();
-    console.log("✅ SQLite local initialisé\n");
+    console.log("✅ Local SQLite initialized\n");
   }
 
   private async benchmarkSQLite(tableName: string, scenario: string, alias: string): Promise<BenchmarkResult> {
@@ -381,25 +381,25 @@ class SQLiteVsAirtableBenchmark {
 
     console.log(`      SQLite:  ${sqlite.avgResponseTime.toFixed(1)}ms avg, ${sqlite.requestsPerSecond.toFixed(1)} req/s, ${sqlite.successRate.toFixed(1)}% success`);
     console.log(`      Airtable: ${airtable.avgResponseTime.toFixed(1)}ms avg, ${airtable.requestsPerSecond.toFixed(1)} req/s, ${airtable.successRate.toFixed(1)}% success`);
-    console.log(`      📈 Amélioration: ${improvement.speedFactor.toFixed(1)}x plus rapide, ${improvement.latencyReduction.toFixed(1)}% latence en moins`);
+    console.log(`      📈 Improvement: ${improvement.speedFactor.toFixed(1)}x faster, ${improvement.latencyReduction.toFixed(1)}% less latency`);
   }
 
   private generateReport(): void {
-    console.log("\n\n📊 RAPPORT COMPLET");
+    console.log("\n\n📊 COMPLETE REPORT");
     console.log("==================");
 
-    // Statistiques globales
+    // Global statistics
     const totalScenarios = this.results.length;
     const avgSpeedFactor = this.results.reduce((sum, r) => sum + r.improvement.speedFactor, 0) / totalScenarios;
     const avgLatencyReduction = this.results.reduce((sum, r) => sum + r.improvement.latencyReduction, 0) / totalScenarios;
 
-    console.log(`\n🎯 Résultats moyens (${totalScenarios} scénarios testés):`);
-    console.log(`   Facteur de vitesse: ${avgSpeedFactor.toFixed(1)}x`);
-    console.log(`   Réduction de latence: ${avgLatencyReduction.toFixed(1)}%`);
+    console.log(`\n🎯 Average results (${totalScenarios} scenarios tested):`);
+    console.log(`   Speed factor: ${avgSpeedFactor.toFixed(1)}x`);
+    console.log(`   Latency reduction: ${avgLatencyReduction.toFixed(1)}%`);
 
-    // Table détaillée
-    console.log("\n📋 Détail par scénario:");
-    console.log("| Table | Scénario | SQLite (ms) | Airtable (ms) | Facteur | Réduction |");
+    // Detailed table
+    console.log("\n📋 Details by scenario:");
+    console.log("| Table | Scenario | SQLite (ms) | Airtable (ms) | Factor | Reduction |");
     console.log("|-------|----------|-------------|---------------|---------|-----------|");
 
     for (const result of this.results) {
@@ -408,32 +408,32 @@ class SQLiteVsAirtableBenchmark {
       );
     }
 
-    // Analyse par scénario
-    console.log("\n🔍 Analyse par type de requête:");
+    // Analysis by scenario
+    console.log("\n🔍 Analysis by query type:");
     const scenarioTypes = [...new Set(this.results.map(r => r.scenario))];
 
     for (const scenario of scenarioTypes) {
       const scenarioResults = this.results.filter(r => r.scenario === scenario);
       const avgImprovement = scenarioResults.reduce((sum, r) => sum + r.improvement.speedFactor, 0) / scenarioResults.length;
-      console.log(`   ${scenario}: ${avgImprovement.toFixed(1)}x plus rapide en moyenne`);
+      console.log(`   ${scenario}: ${avgImprovement.toFixed(1)}x faster on average`);
     }
 
-    // Avantages du SQLite
-    console.log("\n💰 Avantages économiques et techniques de SQLite:");
-    console.log("   ✅ Performance: En moyenne " + avgSpeedFactor.toFixed(1) + "x plus rapide qu'Airtable");
-    console.log("   ✅ Coût: Pas de limite de requêtes API (Airtable: 5 req/s max)");
-    console.log("   ✅ Disponibilité: Fonctionne hors ligne");
-    console.log("   ✅ Latence: Pas de latence réseau");
-    console.log("   ✅ Évolutivité: Pas de quotas ou rate limits");
-    console.log("   ✅ Fiabilité: Pas de dépendance aux services externes");
-    console.log("   ✅ Architecture: Simplification du stack technique");
+    // SQLite advantages
+    console.log("\n💰 Economic and technical advantages of SQLite:");
+    console.log("   ✅ Performance: On average " + avgSpeedFactor.toFixed(1) + "x faster than Airtable");
+    console.log("   ✅ Cost: No API request limits (Airtable: 5 req/s max)");
+    console.log("   ✅ Availability: Works offline");
+    console.log("   ✅ Latency: No network latency");
+    console.log("   ✅ Scalability: No quotas or rate limits");
+    console.log("   ✅ Reliability: No dependency on external services");
+    console.log("   ✅ Architecture: Simplified technical stack");
 
-    // Recommandations
-    console.log("\n🎯 Recommandations:");
-    console.log("   🔄 Sync Airtable → SQLite: 1x par jour (ou selon besoins métier)");
-    console.log("   📊 Requêtes en lecture: 100% via SQLite cache");
-    console.log("   📝 Écritures: Directement dans Airtable + refresh SQLite");
-    console.log("   ⚡ Architecture hybride optimale pour performance et flexibilité");
+    // Recommendations
+    console.log("\n🎯 Recommendations:");
+    console.log("   🔄 Sync Airtable → SQLite: 1x per day (or according to business needs)");
+    console.log("   📊 Read queries: 100% via SQLite cache");
+    console.log("   📝 Writes: Directly to Airtable + refresh SQLite");
+    console.log("   ⚡ Optimal hybrid architecture for performance and flexibility");
 
     this.generateMarkdownReport();
   }
@@ -443,64 +443,64 @@ class SQLiteVsAirtableBenchmark {
     const filename = `sqlite-vs-airtable-comparison-${timestamp}.md`;
 
     let markdown = `# SQLite vs Airtable Performance Benchmark\n\n`;
-    markdown += `**Date:** ${new Date().toLocaleDateString('fr-FR')}\n`;
-    markdown += `**Tables testées:** ${this.tableAliases.size}\n`;
-    markdown += `**Scénarios:** ${[...new Set(this.results.map(r => r.scenario))].length}\n\n`;
+    markdown += `**Date:** ${new Date().toLocaleDateString('en-US')}\n`;
+    markdown += `**Tables tested:** ${this.tableAliases.size}\n`;
+    markdown += `**Scenarios:** ${[...new Set(this.results.map(r => r.scenario))].length}\n\n`;
 
-    // Résumé exécutif
+    // Executive summary
     const totalScenarios = this.results.length;
     const avgSpeedFactor = this.results.reduce((sum, r) => sum + r.improvement.speedFactor, 0) / totalScenarios;
     const avgLatencyReduction = this.results.reduce((sum, r) => sum + r.improvement.latencyReduction, 0) / totalScenarios;
 
-    markdown += `## 🎯 Résumé Exécutif\n\n`;
-    markdown += `- **Performance moyenne:** SQLite est ${avgSpeedFactor.toFixed(1)}x plus rapide qu'Airtable\n`;
-    markdown += `- **Réduction de latence:** ${avgLatencyReduction.toFixed(1)}% en moyenne\n`;
-    markdown += `- **Fiabilité:** 0 échec sur ${this.results.reduce((sum, r) => sum + r.sqlite.totalRequests, 0)} requêtes SQLite\n\n`;
+    markdown += `## 🎯 Executive Summary\n\n`;
+    markdown += `- **Average performance:** SQLite is ${avgSpeedFactor.toFixed(1)}x faster than Airtable\n`;
+    markdown += `- **Latency reduction:** ${avgLatencyReduction.toFixed(1)}% on average\n`;
+    markdown += `- **Reliability:** 0 failures on ${this.results.reduce((sum, r) => sum + r.sqlite.totalRequests, 0)} SQLite queries\n\n`;
 
-    // Résultats détaillés
-    markdown += `## 📊 Résultats Détaillés\n\n`;
-    markdown += `| Table | Scénario | SQLite (ms) | Airtable (ms) | Facteur | Réduction |\n`;
+    // Detailed results
+    markdown += `## 📊 Detailed Results\n\n`;
+    markdown += `| Table | Scenario | SQLite (ms) | Airtable (ms) | Factor | Reduction |\n`;
     markdown += `|-------|----------|-------------|---------------|---------|----------|\n`;
 
     for (const result of this.results) {
       markdown += `| ${result.table} | ${result.scenario} | ${result.sqlite.avgResponseTime.toFixed(1)} | ${result.airtable.avgResponseTime.toFixed(1)} | ${result.improvement.speedFactor.toFixed(1)}x | ${result.improvement.latencyReduction.toFixed(1)}% |\n`;
     }
 
-    markdown += `\n## 💰 Impact Business\n\n`;
-    markdown += `### Coûts Airtable évités\n`;
-    markdown += `- **Rate limits:** 5 requêtes/seconde maximum\n`;
-    markdown += `- **Quotas:** Limites par plan tarifaire\n`;
-    markdown += `- **Latence réseau:** 100-500ms par requête\n\n`;
+    markdown += `\n## 💰 Business Impact\n\n`;
+    markdown += `### Avoided Airtable costs\n`;
+    markdown += `- **Rate limits:** 5 requests/second maximum\n`;
+    markdown += `- **Quotas:** Limits per pricing plan\n`;
+    markdown += `- **Network latency:** 100-500ms per request\n\n`;
 
-    markdown += `### Bénéfices SQLite\n`;
-    markdown += `- **Performance:** ${avgSpeedFactor.toFixed(1)}x plus rapide\n`;
-    markdown += `- **Disponibilité:** 100% (pas de dépendance externe)\n`;
-    markdown += `- **Évolutivité:** Illimitée en local\n`;
-    markdown += `- **Simplicité:** Architecture unifiée\n\n`;
+    markdown += `### SQLite benefits\n`;
+    markdown += `- **Performance:** ${avgSpeedFactor.toFixed(1)}x faster\n`;
+    markdown += `- **Availability:** 100% (no external dependency)\n`;
+    markdown += `- **Scalability:** Unlimited locally\n`;
+    markdown += `- **Simplicity:** Unified architecture\n\n`;
 
     try {
       Bun.write(filename, markdown);
-      console.log(`\n📄 Rapport détaillé généré: ${filename}`);
+      console.log(`\n📄 Detailed report generated: ${filename}`);
     } catch (error) {
-      console.error("❌ Erreur lors de la génération du rapport:", error);
+      console.error("❌ Error generating report:", error);
     }
   }
 
   async cleanup(): Promise<void> {
-    console.log("\n🧹 Nettoyage...");
+    console.log("\n🧹 Cleaning up...");
     await sqliteService.close();
-    console.log("✅ Nettoyage terminé");
+    console.log("✅ Cleanup completed");
   }
 }
 
-// Exécution si appelé directement
+// Execute if called directly
 if (import.meta.main) {
   const benchmark = new SQLiteVsAirtableBenchmark();
 
   try {
     await benchmark.runBenchmark();
   } catch (error) {
-    console.error("❌ Erreur pendant le benchmark:", error);
+    console.error("❌ Error during benchmark:", error);
   } finally {
     await benchmark.cleanup();
   }

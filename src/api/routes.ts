@@ -1,26 +1,32 @@
 /**
- * Routes API pour accéder aux données cachées d'Airtable
+ * API routes for database backend
+ * Provides REST endpoints for cached Airtable data
  */
 
-import { redisService } from "../lib/redis/index";
-import { getActiveNamespace, keyRecord, keyIndex } from "../lib/redis/helpers";
+import { sqliteService } from "../lib/sqlite/index";
+import {
+  getActiveVersion,
+  getTableRecords,
+  getRecord,
+  countTableRecords,
+  getTables,
+  getCacheStats,
+  flipActiveVersion
+} from "../lib/sqlite/helpers";
 import { normalizeKey } from "../lib/utils/index";
 import { AIRTABLE_TABLE_NAMES } from "../lib/airtable/schema";
-import { requireAuth, logAuthAttempt, isAuthenticated } from "./auth";
+import { requireAuth, logAuthAttempt } from "./auth";
 import type {
   ApiResponse,
   HealthInfo,
   CacheStats,
   TablesListResponse,
   TableRecordsResponse,
-  RecordResponse,
-  QueryParams,
-  BenchmarkResponse,
-  BenchmarkResult
+  RecordResponse
 } from "./types";
 
 /**
- * Utilitaires pour les réponses API
+ * Utilities for API responses
  */
 function createSuccessResponse<T>(data: T, meta?: any): ApiResponse<T> {
   return {
@@ -60,9 +66,9 @@ function createJsonResponse<T>(data: ApiResponse<T>, status: number = 200): Resp
     headers: {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Authorization, Content-Type",
-      "X-Cache-Namespace": data.meta?.namespace || "unknown",
+      "X-Cache-Version": data.meta?.version?.toString() || "unknown",
       "X-Cache-Timestamp": data.meta?.timestamp || new Date().toISOString(),
       "Cache-Control": "public, max-age=30"
     }
@@ -70,22 +76,22 @@ function createJsonResponse<T>(data: ApiResponse<T>, status: number = 200): Resp
 }
 
 /**
- * Health check endpoint (pas d'auth requise)
+ * Health check endpoint
  */
 export async function handleHealth(request: Request): Promise<Response> {
   try {
     const startTime = Date.now();
 
-    // Test Redis
-    const redisHealthy = await redisService.healthCheck();
+    // Test database
+    const dbHealthy = await sqliteService.healthCheck();
 
     const healthInfo: HealthInfo = {
-      status: redisHealthy ? "healthy" : "degraded",
+      status: dbHealthy ? "healthy" : "degraded",
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       services: {
-        redis: redisHealthy,
-        worker: true // Simplifié pour MVP
+        database: dbHealthy,
+        worker: true
       }
     };
 
@@ -93,7 +99,7 @@ export async function handleHealth(request: Request): Promise<Response> {
 
     console.log(`🩺 Health check - ${Date.now() - startTime}ms - Status: ${healthInfo.status}`);
 
-    return createJsonResponse(response, redisHealthy ? 200 : 503);
+    return createJsonResponse(response, dbHealthy ? 200 : 503);
 
   } catch (error) {
     console.error("❌ Health check failed:", error);
@@ -106,10 +112,9 @@ export async function handleHealth(request: Request): Promise<Response> {
 }
 
 /**
- * Liste des tables disponibles
+ * List of available tables
  */
 export async function handleTables(request: Request): Promise<Response> {
-  // Vérification auth
   const authError = requireAuth(request);
   if (authError) {
     logAuthAttempt(request, false);
@@ -119,18 +124,29 @@ export async function handleTables(request: Request): Promise<Response> {
   logAuthAttempt(request, true);
 
   try {
-    const namespace = await getActiveNamespace();
+    const version = await getActiveVersion();
+
+    // Get tables from the active version
+    let tables = await getTables(false);
+
+    // If no tables in the active version, try the inactive version
+    if (tables.length === 0) {
+      tables = await getTables(true);
+    }
+
+    // Normalize table names for consistency
+    const normalizedTables = tables.length > 0 ? tables.map(table => normalizeKey(table)) : [...AIRTABLE_TABLE_NAMES];
 
     const response: TablesListResponse = {
-      tables: [...AIRTABLE_TABLE_NAMES], // Convert readonly array to mutable
-      namespace,
-      total: AIRTABLE_TABLE_NAMES.length
+      tables: normalizedTables,
+      version: `v${version}`,
+      total: tables.length || AIRTABLE_TABLE_NAMES.length
     };
 
-    console.log(`📋 Tables list requested - ${AIRTABLE_TABLE_NAMES.length} tables`);
+    console.log(`📋 Tables list requested - ${response.total} tables (normalized)`);
 
     return createJsonResponse(
-      createSuccessResponse(response, { namespace })
+      createSuccessResponse(response, { version })
     );
 
   } catch (error) {
@@ -144,10 +160,9 @@ export async function handleTables(request: Request): Promise<Response> {
 }
 
 /**
- * Records d'une table spécifique
+ * Records from a specific table
  */
 export async function handleTableRecords(request: Request, tableName: string): Promise<Response> {
-  // Vérification auth
   const authError = requireAuth(request);
   if (authError) {
     logAuthAttempt(request, false);
@@ -157,8 +172,9 @@ export async function handleTableRecords(request: Request, tableName: string): P
   logAuthAttempt(request, true);
 
   try {
-    // Vérifier que la table existe
-    if (!AIRTABLE_TABLE_NAMES.includes(tableName as any)) {
+    // Check that the table exists (accept original or normalized names)
+    const originalTableNames = AIRTABLE_TABLE_NAMES.map(name => normalizeKey(name));
+    if (!originalTableNames.includes(tableName as any) && !AIRTABLE_TABLE_NAMES.includes(tableName as any)) {
       return createErrorResponse(
         "Table not found",
         `Table '${tableName}' does not exist`,
@@ -166,10 +182,10 @@ export async function handleTableRecords(request: Request, tableName: string): P
       );
     }
 
-    const namespace = await getActiveNamespace();
+    const version = await getActiveVersion();
     const normalizedTableName = normalizeKey(tableName);
 
-    // Pagination et filtrage des champs
+    // Pagination
     const url = new URL(request.url);
     const limitParam = url.searchParams.get("limit");
     const offsetParam = url.searchParams.get("offset");
@@ -180,43 +196,48 @@ export async function handleTableRecords(request: Request, tableName: string): P
     const offset = Math.max(0, offsetParam ? parseInt(offsetParam, 10) : 0);
     const fields = fieldsParam ? fieldsParam.split(",").map((s) => s.trim()).filter(Boolean) : null;
 
-    // Utiliser l'index d'IDs et MGET pour des performances optimales
-    const indexKey = keyIndex(namespace, normalizedTableName);
-    // Récupère les IDs, trie pour déterminisme puis applique la pagination
-    const ids = await redisService.smembers(indexKey);
-    ids.sort();
-    const totalAvailable = ids.length;
+    // Get records with pagination (try active version first, then inactive)
+    // Try with normalized name first
+    let allRecords = await getTableRecords(normalizedTableName, false, limit, offset);
+    let totalCount = await countTableRecords(normalizedTableName, false);
 
-    const selectedIds = limit > 0 ? ids.slice(offset, offset + limit) : ids;
-    const recordKeys = selectedIds.map((id) => keyRecord(namespace, normalizedTableName, id));
+    // If no records, try with original name
+    if (totalCount === 0) {
+      const originalTableName = AIRTABLE_TABLE_NAMES.find(name => normalizeKey(name) === normalizedTableName);
+      if (originalTableName) {
+        allRecords = await getTableRecords(originalTableName, false, limit, offset);
+        totalCount = await countTableRecords(originalTableName, false);
 
-    const values = recordKeys.length > 0 ? await redisService.mget(recordKeys) : [];
-    const records = [] as any[];
-    for (const value of values) {
-      if (!value) continue;
-      try {
-        const parsed = JSON.parse(value);
-        if (fields && fields.length > 0) {
-          const projected: Record<string, any> = {};
-          for (const f of fields) {
-            if (Object.prototype.hasOwnProperty.call(parsed, f)) projected[f] = parsed[f];
-          }
-          // Toujours renvoyer l'identifiant
-          if (parsed.record_id && projected.record_id === undefined) projected.record_id = parsed.record_id;
-          records.push(projected);
-        } else {
-          records.push(parsed);
+        // If still no records, try inactive version with original name
+        if (totalCount === 0) {
+          allRecords = await getTableRecords(originalTableName, true, limit, offset);
+          totalCount = await countTableRecords(originalTableName, true);
         }
-      } catch (parseError) {
-        // ignorer les items invalides
       }
     }
+
+    // Field filtering if requested
+    const records = allRecords.map(record => {
+      if (!fields || fields.length === 0) return record;
+
+      const projected: Record<string, any> = {};
+      for (const field of fields) {
+        if (Object.prototype.hasOwnProperty.call(record, field)) {
+          projected[field] = record[field];
+        }
+      }
+      // Always return the identifier
+      if (record.record_id && projected.record_id === undefined) {
+        projected.record_id = record.record_id;
+      }
+      return projected;
+    });
 
     const response: TableRecordsResponse = {
       records,
       table: tableName,
-      namespace,
-      total: totalAvailable,
+      version: `v${version}`,
+      total: totalCount,
       limit: limit > 0 ? limit : undefined,
       offset: offset || undefined
     };
@@ -224,7 +245,7 @@ export async function handleTableRecords(request: Request, tableName: string): P
     console.log(`📊 Table '${tableName}' requested - ${records.length} records`);
 
     return createJsonResponse(
-      createSuccessResponse(response, { namespace })
+      createSuccessResponse(response, { version })
     );
 
   } catch (error) {
@@ -238,10 +259,9 @@ export async function handleTableRecords(request: Request, tableName: string): P
 }
 
 /**
- * Record spécifique par ID
+ * Specific record by ID
  */
 export async function handleSingleRecord(request: Request, tableName: string, recordId: string): Promise<Response> {
-  // Vérification auth
   const authError = requireAuth(request);
   if (authError) {
     logAuthAttempt(request, false);
@@ -251,8 +271,9 @@ export async function handleSingleRecord(request: Request, tableName: string, re
   logAuthAttempt(request, true);
 
   try {
-    // Vérifier que la table existe
-    if (!AIRTABLE_TABLE_NAMES.includes(tableName as any)) {
+    // Check that the table exists (accept original or normalized names)
+    const originalTableNames = AIRTABLE_TABLE_NAMES.map(name => normalizeKey(name));
+    if (!originalTableNames.includes(tableName as any) && !AIRTABLE_TABLE_NAMES.includes(tableName as any)) {
       return createErrorResponse(
         "Table not found",
         `Table '${tableName}' does not exist`,
@@ -260,16 +281,30 @@ export async function handleSingleRecord(request: Request, tableName: string, re
       );
     }
 
-    const namespace = await getActiveNamespace();
+    const version = await getActiveVersion();
     const normalizedTableName = normalizeKey(tableName);
-    const key = keyRecord(namespace, normalizedTableName, recordId);
 
-    // Filtrage des champs optionnel
+    // Optional field filtering
     const url = new URL(request.url);
     const fieldsParam = url.searchParams.get("fields");
     const fields = fieldsParam ? fieldsParam.split(",").map((s) => s.trim()).filter(Boolean) : null;
 
-    const recordData = await redisService.get(key);
+    // Try active version first, then inactive
+    // Try with normalized name first
+    let recordData = await getRecord(normalizedTableName, recordId, false);
+
+    // If no record, try with original name
+    if (!recordData) {
+      const originalTableName = AIRTABLE_TABLE_NAMES.find(name => normalizeKey(name) === normalizedTableName);
+      if (originalTableName) {
+        recordData = await getRecord(originalTableName, recordId, false);
+
+        // If still no record, try inactive version with original name
+        if (!recordData) {
+          recordData = await getRecord(originalTableName, recordId, true);
+        }
+      }
+    }
 
     if (!recordData) {
       return createErrorResponse(
@@ -279,14 +314,18 @@ export async function handleSingleRecord(request: Request, tableName: string, re
       );
     }
 
-    const parsed = JSON.parse(recordData);
     const record = (() => {
-      if (!fields || fields.length === 0) return parsed;
+      if (!fields || fields.length === 0) return recordData;
+
       const projected: Record<string, any> = {};
-      for (const f of fields) {
-        if (Object.prototype.hasOwnProperty.call(parsed, f)) projected[f] = parsed[f];
+      for (const field of fields) {
+        if (Object.prototype.hasOwnProperty.call(recordData, field)) {
+          projected[field] = recordData[field];
+        }
       }
-      if (parsed.record_id && projected.record_id === undefined) projected.record_id = parsed.record_id;
+      if (recordData.record_id && projected.record_id === undefined) {
+        projected.record_id = recordData.record_id;
+      }
       return projected;
     })();
 
@@ -294,13 +333,13 @@ export async function handleSingleRecord(request: Request, tableName: string, re
       record,
       table: tableName,
       recordId,
-      namespace
+      version: `v${version}`
     };
 
     console.log(`🔍 Record '${recordId}' from table '${tableName}' requested`);
 
     return createJsonResponse(
-      createSuccessResponse(response, { namespace })
+      createSuccessResponse(response, { version })
     );
 
   } catch (error) {
@@ -314,10 +353,9 @@ export async function handleSingleRecord(request: Request, tableName: string, re
 }
 
 /**
- * Statistiques du cache
+ * Cache statistics
  */
 export async function handleStats(request: Request): Promise<Response> {
-  // Vérification auth
   const authError = requireAuth(request);
   if (authError) {
     logAuthAttempt(request, false);
@@ -327,38 +365,12 @@ export async function handleStats(request: Request): Promise<Response> {
   logAuthAttempt(request, true);
 
   try {
-    const namespace = await getActiveNamespace();
+    const stats = await getCacheStats();
 
-    // Compter les records par table
-    const tableStats = [];
-    let totalRecords = 0;
-
-    // Paralleliser le comptage pour réduire la latence
-    const counts = await Promise.all(
-      AIRTABLE_TABLE_NAMES.map(async (t) => {
-        const normalizedTableName = normalizeKey(t);
-        const indexKey = keyIndex(namespace, normalizedTableName);
-        const count = await redisService.scard(indexKey);
-        return { name: t, count };
-      })
-    );
-
-    for (const { name, count } of counts) {
-      tableStats.push({ name, recordCount: count });
-      totalRecords += count;
-    }
-
-    const stats: CacheStats = {
-      activeNamespace: namespace,
-      totalTables: AIRTABLE_TABLE_NAMES.length,
-      totalRecords,
-      tables: tableStats
-    };
-
-    console.log(`📈 Stats requested - ${totalRecords} records across ${AIRTABLE_TABLE_NAMES.length} tables`);
+    console.log(`📈 Stats requested - ${stats.totalRecords} records across ${stats.totalTables} tables`);
 
     return createJsonResponse(
-      createSuccessResponse(stats, { namespace })
+      createSuccessResponse(stats, { version: stats.activeVersion })
     );
 
   } catch (error) {
@@ -372,10 +384,9 @@ export async function handleStats(request: Request): Promise<Response> {
 }
 
 /**
- * Benchmark de performance pour la production
+ * Manual refresh endpoint
  */
-export async function handleBenchmark(request: Request): Promise<Response> {
-  // Vérification auth
+export async function handleRefresh(request: Request, worker?: Worker): Promise<Response> {
   const authError = requireAuth(request);
   if (authError) {
     logAuthAttempt(request, false);
@@ -384,187 +395,44 @@ export async function handleBenchmark(request: Request): Promise<Response> {
 
   logAuthAttempt(request, true);
 
-  try {
-    const url = new URL(request.url);
-    const benchmarkType = url.searchParams.get("type") || "performance";
-    const requests = parseInt(url.searchParams.get("requests") || "100");
-    const concurrent = parseInt(url.searchParams.get("concurrent") || "10");
-    const tableName = url.searchParams.get("table") || AIRTABLE_TABLE_NAMES[0];
-
-    console.log(`🏁 Starting benchmark: ${benchmarkType} (${requests} requests, ${concurrent} concurrent)`);
-
-    const startTime = Date.now();
-    const results: BenchmarkResult[] = [];
-
-    // Benchmark des endpoints disponibles
-    const endpoints = [
-      { path: "/health", auth: false, name: "Health Check" },
-      { path: "/api/tables", auth: true, name: "Tables List" },
-      { path: "/api/stats", auth: true, name: "Cache Stats" },
-      { path: `/api/tables/${encodeURIComponent(tableName)}`, auth: true, name: `Table Records (${tableName})` }
-    ];
-
-    for (const endpoint of endpoints) {
-      try {
-        const result = await runBenchmarkTest(endpoint.path, {
-          requests: Math.min(requests, endpoint.auth ? 50 : 200), // Limiter selon l'endpoint
-          concurrent: Math.min(concurrent, endpoint.auth ? 5 : 20),
-          withAuth: endpoint.auth
-        });
-        
-        results.push({
-          endpoint: endpoint.path,
-          name: endpoint.name,
-          ...result
-        });
-
-        // Pause entre les tests pour éviter la surcharge
-        await new Promise(resolve => setTimeout(resolve, 500));
-      } catch (error) {
-        console.error(`❌ Benchmark failed for ${endpoint.path}:`, error);
-        results.push({
-          endpoint: endpoint.path,
-          name: endpoint.name,
-          requests: 0,
-          successCount: 0,
-          errorCount: 1,
-          avgResponseTime: 0,
-          minResponseTime: 0,
-          maxResponseTime: 0,
-          p95ResponseTime: 0,
-          requestsPerSecond: 0,
-          errors: [error instanceof Error ? error.message : String(error)]
-        });
-      }
-    }
-
-    const totalTime = Date.now() - startTime;
-    const totalRequests = results.reduce((sum, r) => sum + r.requests, 0);
-    const totalSuccess = results.reduce((sum, r) => sum + r.successCount, 0);
-    const totalErrors = results.reduce((sum, r) => sum + r.errorCount, 0);
-
-    const benchmarkResponse: BenchmarkResponse = {
-      type: benchmarkType,
-      totalTime,
-      totalRequests,
-      totalSuccess,
-      totalErrors,
-      successRate: totalRequests > 0 ? (totalSuccess / totalRequests) * 100 : 0,
-      results,
-      config: {
-        requests,
-        concurrent,
-        tableName,
-        timestamp: new Date().toISOString()
-      }
-    };
-
-    console.log(`✅ Benchmark completed in ${totalTime}ms - ${totalSuccess}/${totalRequests} successful (${benchmarkResponse.successRate.toFixed(1)}%)`);
-
-    return createJsonResponse(
-      createSuccessResponse(benchmarkResponse, { 
-        namespace: await getActiveNamespace(),
-        benchmarkType,
-        totalTime 
-      })
-    );
-
-  } catch (error) {
-    console.error("❌ Error running benchmark:", error);
+  if (request.method !== "POST") {
     return createErrorResponse(
-      "Benchmark failed",
-      "Unable to execute performance benchmark",
-      "BENCHMARK_FAILED"
+      "Method not allowed",
+      "This endpoint only accepts POST requests",
+      "METHOD_NOT_ALLOWED"
     );
   }
-}
 
-/**
- * Exécute un test de benchmark sur un endpoint spécifique
- */
-async function runBenchmarkTest(
-  endpoint: string, 
-  options: { requests: number; concurrent: number; withAuth: boolean }
-): Promise<Omit<BenchmarkResult, 'endpoint' | 'name'>> {
-  const { requests, concurrent, withAuth } = options;
-  const baseUrl = process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
-  const fullUrl = `${baseUrl}${endpoint}`;
-  
-  const headers: Record<string, string> = {};
-  if (withAuth && process.env.BEARER_TOKEN) {
-    headers["Authorization"] = `Bearer ${process.env.BEARER_TOKEN}`;
-  }
-
-  const responseTimes: number[] = [];
-  let successCount = 0;
-  let errorCount = 0;
-  const errors: string[] = [];
-
-  // Créer des batches de requêtes concurrentes
-  const batches = Math.ceil(requests / concurrent);
-  const startTime = Date.now();
-
-  for (let batch = 0; batch < batches; batch++) {
-    const batchPromises = [];
-    const batchSize = Math.min(concurrent, requests - (batch * concurrent));
-
-    for (let i = 0; i < batchSize; i++) {
-      batchPromises.push(
-        fetch(fullUrl, { headers })
-          .then(async (response) => {
-            const requestTime = Date.now();
-            const responseTime = requestTime - startTime;
-            
-            if (response.ok) {
-              successCount++;
-              responseTimes.push(responseTime);
-            } else {
-              errorCount++;
-              errors.push(`HTTP ${response.status}: ${response.statusText}`);
-            }
-          })
-          .catch((error) => {
-            errorCount++;
-            errors.push(error.message);
-          })
+  try {
+    if (!worker) {
+      return createErrorResponse(
+        "Worker not available",
+        "Refresh worker is not available",
+        "WORKER_NOT_AVAILABLE"
       );
     }
 
-    await Promise.all(batchPromises);
-    
-    // Petite pause entre les batches pour éviter la surcharge
-    if (batch < batches - 1) {
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
+    console.log("🔄 Manual refresh triggered");
+
+    // Trigger the refresh
+    worker.postMessage({ type: "refresh:start" });
+
+    const response = {
+      message: "Refresh started successfully",
+      timestamp: new Date().toISOString(),
+      type: "manual"
+    };
+
+    return createJsonResponse(
+      createSuccessResponse(response)
+    );
+
+  } catch (error) {
+    console.error("❌ Error triggering refresh:", error);
+    return createErrorResponse(
+      "Failed to trigger refresh",
+      "Unable to start manual refresh",
+      "REFRESH_FAILED"
+    );
   }
-
-  const totalTime = Date.now() - startTime;
-  const sortedTimes = responseTimes.sort((a, b) => a - b);
-  
-  return {
-    requests,
-    successCount,
-    errorCount,
-    avgResponseTime: responseTimes.length > 0 ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length : 0,
-    minResponseTime: sortedTimes[0] || 0,
-    maxResponseTime: sortedTimes[sortedTimes.length - 1] || 0,
-    p95ResponseTime: sortedTimes[Math.floor(sortedTimes.length * 0.95)] || 0,
-    requestsPerSecond: totalTime > 0 ? (successCount / totalTime) * 1000 : 0,
-    errors: errors.slice(0, 10) // Limiter à 10 erreurs pour éviter des réponses trop lourdes
-  };
-}
-
-/**
- * Gestion des OPTIONS pour CORS
- */
-export function handleOptions(): Response {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
-      "Access-Control-Allow-Headers": "Authorization, Content-Type",
-      "Access-Control-Max-Age": "86400"
-    }
-  });
 }
