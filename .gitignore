@@ -34,6 +34,14 @@ cache/
 airtable-cache/
 *.cache.json
 
+# SQLite databases and storage
+data/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+storage/
+
 # Generated reports (may contain production data)
 *-report.md
 *-comparison.md

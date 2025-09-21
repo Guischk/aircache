@@ -1,125 +1,197 @@
-// src/worker-refresh.ts
-import { redisService } from "../lib/redis/index";
-import { keyRecord, keyIndex, keyTables, withLock, getActiveNamespace } from "../lib/redis/helpers";
-import { inactiveOf, flipActiveNS } from "../lib/redis/helpers";
-import { updateSchemaWithRetry, validateSchema } from "../lib/airtable/schema-updater";
-import { AIRTABLE_TABLE_NAMES } from "../lib/airtable/schema";
-import { base } from "../lib/airtable";
-import { normalizeForRedis } from "../lib/utils";
-import { flattenRecord } from "airtable-types-gen";
+/**
+ * Worker unifié pour la synchronisation Redis et SQLite
+ */
 
-declare var self: Worker;
+import { SQLiteBackend } from "./backends/sqlite-backend";
+import { RedisBackend } from "./backends/redis-backend";
 
-const TTL = parseInt(process.env.CACHE_TTL || "5400");
+export type WorkerBackend = 'redis' | 'sqlite';
 
-self.onmessage = async (e) => {
-  if (e.data?.type !== "refresh:start") return;
+export interface WorkerMessage {
+  type: 'refresh:start' | 'refresh:stop' | 'stats:get';
+  manual?: boolean;
+}
 
-  // lock pour éviter 2 refresh concurrents (même si plusieurs workers/process)
-  const out = await withLock("refresh", 30 * 60, async () => {
-    console.log("🚀 Début du refresh des données Airtable");
+export interface WorkerResponse {
+  type: 'refresh:done' | 'refresh:error' | 'stats:response';
+  stats?: any;
+  error?: string;
+  manual?: boolean;
+}
 
-    // 1) Mise à jour du schéma Airtable au début du refresh
-    console.log("📋 Étape 1: Mise à jour du schéma Airtable");
-    const schemaUpdated = await updateSchemaWithRetry(2);
+class UnifiedWorker {
+  private backend: SQLiteBackend | RedisBackend;
+  private backendType: WorkerBackend;
+  private isRefreshing = false;
 
-    if (!schemaUpdated) {
-      console.warn("⚠️ Échec mise à jour schéma, utilisation de l'ancien schéma");
-      // On continue avec l'ancien schéma plutôt que d'échouer
+  constructor(backendType: WorkerBackend) {
+    this.backendType = backendType;
+
+    if (backendType === 'sqlite') {
+      this.backend = new SQLiteBackend();
     } else {
-      // Validation du nouveau schéma
-      const isValid = await validateSchema();
-      if (!isValid) {
-        console.warn("⚠️ Nouveau schéma invalide, utilisation de l'ancien");
-      }
+      this.backend = new RedisBackend();
     }
 
-    // 2) Connexion Redis et récupération des namespaces
-    console.log("🔄 Étape 2: Initialisation Redis");
-    await redisService.connect();
+    console.log(`🔧 [Worker] Initialisé avec backend: ${backendType.toUpperCase()}`);
+  }
 
-    const active = await getActiveNamespace();
-    const inactive = inactiveOf(active);
+  async handleMessage(message: WorkerMessage): Promise<void> {
+    console.log(`📨 [Worker] Message reçu:`, message);
 
-    console.log(`📍 Namespace actif: ${active}, inactif: ${inactive}`);
+    switch (message.type) {
+      case 'refresh:start':
+        await this.handleRefreshStart(message.manual);
+        break;
 
-    // 3) Extraction et cache des données Airtable
-    console.log("📊 Étape 3: Extraction des données depuis Airtable");
-    let totalRecords = 0;
+      case 'refresh:stop':
+        await this.handleRefreshStop();
+        break;
 
-    for (const table of AIRTABLE_TABLE_NAMES) {
-      try {
-        console.log(`🔄 Traitement de la table: ${table}`);
-        const tableInstance = base(table);
-        const redisTableName = normalizeForRedis(table);
-        const results = await tableInstance.select().all();
+      case 'stats:get':
+        await this.handleStatsGet();
+        break;
 
-        console.log(`📋 ${table}: ${results.length} enregistrements trouvés`);
-        totalRecords += results.length;
+      default:
+        console.warn(`⚠️ [Worker] Message non reconnu:`, message);
+    }
+  }
 
-        // Préparer les clés d'index
-        const indexKey = keyIndex(inactive, redisTableName);
-
-        // Ajouter la table à l'index des tables
-        const tablesKey = keyTables(inactive);
-        await redisService.sadd(tablesKey, redisTableName);
-
-        // Ecrire par paquets pour limiter la pression mémoire et bénéficier de l'auto-pipelining
-        const CHUNK_SIZE = 500;
-        for (let i = 0; i < results.length; i += CHUNK_SIZE) {
-          const chunk = results.slice(i, i + CHUNK_SIZE);
-
-          await Promise.all(
-            chunk.map(async (record) => {
-              try {
-                const flattened = flattenRecord(record);
-                const recId = flattened.record_id;
-                const key = keyRecord(inactive, redisTableName, recId);
-                const value = JSON.stringify(flattened);
-
-                await Promise.all([
-                  redisService.set(key, value, { ttl: TTL }),
-                  redisService.sadd(indexKey, recId),
-                ]);
-
-              } catch (recordError) {
-                console.error(`❌ Erreur traitement record ${record.id}:`, recordError);
-              }
-            })
-          );
-        }
-
-        // TTL sur l'index et l'index des tables pour rester cohérent avec les records
-        await Promise.all([
-          redisService.expire(indexKey, TTL),
-          redisService.expire(tablesKey, TTL),
-        ]);
-
-        console.log(`✅ ${table}: ${results.length} enregistrements cachés`);
-
-        // Laisser respirer le CPU
-        await Bun.sleep(0);
-
-      } catch (tableError) {
-        console.error(`❌ Erreur traitement table ${table}:`, tableError);
-        // Continue avec les autres tables
-      }
+  private async handleRefreshStart(manual = false): Promise<void> {
+    if (this.isRefreshing) {
+      console.log("⏭️ [Worker] Refresh déjà en cours, ignoré");
+      return;
     }
 
-    console.log(`📊 Total: ${totalRecords} enregistrements traités`);
+    this.isRefreshing = true;
 
-    // 4) Basculement atomique vers le nouveau namespace
-    console.log("🔄 Étape 4: Basculement du namespace actif");
-    await flipActiveNS(inactive);
+    try {
+      console.log(`🚀 [Worker] Début du refresh ${manual ? 'manuel' : 'automatique'} (${this.backendType})`);
 
-    console.log("✅ Refresh terminé avec succès");
-    return {
-      flippedTo: inactive,
-      totalRecords,
-      schemaUpdated
-    };
-  });
+      const stats = await this.backend.refreshData();
 
-  // informer le main (facultatif)
-  postMessage({ type: "refresh:done", stats: out ?? { skipped: true } });
-};
+      this.postMessage({
+        type: 'refresh:done',
+        stats,
+        manual
+      });
+
+    } catch (error) {
+      console.error("❌ [Worker] Erreur lors du refresh:", error);
+
+      this.postMessage({
+        type: 'refresh:error',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        manual
+      });
+
+    } finally {
+      this.isRefreshing = false;
+    }
+  }
+
+  private async handleRefreshStop(): Promise<void> {
+    if (!this.isRefreshing) {
+      console.log("ℹ️ [Worker] Aucun refresh en cours");
+      return;
+    }
+
+    console.log("🛑 [Worker] Arrêt du refresh demandé");
+    // Note: Dans une implémentation plus avancée, on pourrait
+    // implémenter une logique d'annulation
+    this.isRefreshing = false;
+  }
+
+  private async handleStatsGet(): Promise<void> {
+    try {
+      const stats = await this.backend.getStats();
+
+      this.postMessage({
+        type: 'stats:response',
+        stats
+      });
+
+    } catch (error) {
+      console.error("❌ [Worker] Erreur lors de la récupération des stats:", error);
+
+      this.postMessage({
+        type: 'refresh:error',
+        error: error instanceof Error ? error.message : 'Stats retrieval failed'
+      });
+    }
+  }
+
+  private postMessage(response: WorkerResponse): void {
+    if (typeof self !== 'undefined' && self.postMessage) {
+      // Context de Web Worker
+      self.postMessage(response);
+    } else {
+      // Context de test ou développement
+      console.log("📤 [Worker] Response:", response);
+    }
+  }
+
+  async close(): Promise<void> {
+    console.log("🔄 [Worker] Fermeture...");
+
+    if (this.isRefreshing) {
+      console.log("⏳ [Worker] Attente de la fin du refresh...");
+      // Dans une implémentation plus avancée, on attendrait la fin du refresh
+    }
+
+    await this.backend.close();
+    console.log("✅ [Worker] Fermé");
+  }
+}
+
+// Détection du contexte d'exécution
+let worker: UnifiedWorker;
+
+// Initialisation du worker
+function initializeWorker(): void {
+  // Déterminer le backend depuis les données du worker ou l'environnement
+  let backendType: WorkerBackend = 'sqlite'; // Par défaut
+
+  if (typeof self !== 'undefined' && 'workerData' in self) {
+    // Bun Worker context
+    backendType = (self as any).workerData?.backend || 'sqlite';
+  } else if (process.env.REDIS_URL && process.env.REDIS_URL !== '') {
+    // Variable d'environnement Redis définie
+    backendType = 'redis';
+  }
+
+  worker = new UnifiedWorker(backendType);
+}
+
+// Gestionnaire de messages pour Web Worker
+if (typeof self !== 'undefined' && self.onmessage !== undefined) {
+  // Context de Web Worker
+  initializeWorker();
+
+  self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
+    if (worker) {
+      await worker.handleMessage(event.data);
+    }
+  };
+
+  self.onerror = (error) => {
+    console.error("❌ [Worker] Erreur globale:", error);
+  };
+
+  console.log("✅ [Worker] Prêt à recevoir des messages");
+}
+
+// Export pour usage direct (tests, développement)
+export { UnifiedWorker };
+
+// Auto-initialisation si exécuté directement
+if (import.meta.main) {
+  console.log("🔧 [Worker] Exécution directe pour test");
+
+  initializeWorker();
+
+  // Test basique
+  await worker.handleMessage({ type: 'refresh:start', manual: true });
+
+  console.log("✅ [Worker] Test terminé");
+}

@@ -1,5 +1,5 @@
 [build]
-# Railpack est le nouveau système de build recommandé (remplace Nixpacks)
+# Railpack pour Bun + SQLite
 builder = "RAILPACK"
 
 [deploy]
@@ -7,12 +7,22 @@ startCommand = "bun start"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 
-[environments.production]
-variables = { NODE_ENV = "production" }
+# Volumes pour persistance SQLite et attachments
+volumes = [
+  { source = "/app/data", target = "/app/data" },
+  { source = "/app/storage", target = "/app/storage" }
+]
 
-[environments.staging]
-variables = { NODE_ENV = "staging" }
+[environments.production.variables]
+NODE_ENV = "production"
+SQLITE_PATH = "/app/data/aircache.db"
+STORAGE_PATH = "/app/storage/attachments"
+REFRESH_INTERVAL = "86400"
+CACHE_TTL = "86400"
 
-# Configuration pour les services Redis
-[services.redis]
-type = "redis"
+[environments.staging.variables]
+NODE_ENV = "staging"
+SQLITE_PATH = "/app/data/aircache-staging.db"
+STORAGE_PATH = "/app/storage/attachments-staging"
+REFRESH_INTERVAL = "43200"
+CACHE_TTL = "43200"

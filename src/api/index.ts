@@ -1,131 +1,148 @@
 /**
- * Serveur API principal utilisant Bun.serve()
+ * Serveur API unifié supportant Redis et SQLite
  */
 
-import {
-  handleHealth,
-  handleTables,
-  handleTableRecords,
-  handleSingleRecord,
-  handleStats,
-  handleBenchmark,
-  handleOptions
-} from "./routes";
+import { detectBackend, type BackendType } from "../server/index";
+import { handleHealth } from "./handlers/health";
+import { handleTables, handleTableRecords, handleSingleRecord } from "./handlers/tables";
+import { handleStats, handleRefresh } from "./handlers/stats";
+import { validateBearerToken, createUnauthorizedResponse, createOptionsResponse, addCorsHeaders } from "./middleware/auth";
 
 /**
- * Router simple pour gérer les différentes routes
+ * Router unifié pour gérer les différentes routes avec support Redis/SQLite
  */
-async function handleRequest(request: Request): Promise<Response> {
+async function handleRequest(request: Request, backend: BackendType, worker?: Worker): Promise<Response> {
   const url = new URL(request.url);
   const pathname = url.pathname;
   const method = request.method;
 
-  console.log(`< ${method} ${pathname}`);
+  console.log(`< ${method} ${pathname} (${backend})`);
 
-  // CORS preflight
+  // Gestion CORS préliminaire
   if (method === "OPTIONS") {
-    return handleOptions();
+    return createOptionsResponse();
   }
 
-  // Health check (pas d'auth)
-  if (pathname === "/health") {
-    return handleHealth(request);
+  // Authentification pour toutes les routes sauf /health
+  if (pathname !== "/health" && !validateBearerToken(request)) {
+    return createUnauthorizedResponse();
   }
 
-  // API Routes (avec auth)
-  if (pathname === "/api/tables") {
-    return handleTables(request);
-  }
+  // Routes
+  let response: Response;
 
-  if (pathname === "/api/stats") {
-    return handleStats(request);
-  }
+  switch (pathname) {
+    case "/health":
+      response = await handleHealth(backend);
+      break;
 
-  if (pathname === "/api/benchmark") {
-    return handleBenchmark(request);
-  }
+    case "/api/tables":
+      response = await handleTables(backend);
+      break;
 
-  // Route table spécifique: /api/tables/:tableName
-  const tableMatch = pathname.match(/^\/api\/tables\/([^\/]+)$/);
-  if (tableMatch) {
-    const tableName = decodeURIComponent(tableMatch[1]);
-    return handleTableRecords(request, tableName);
-  }
+    case "/api/stats":
+      response = await handleStats(backend);
+      break;
 
-  // Route record spécifique: /api/tables/:tableName/:recordId
-  const recordMatch = pathname.match(/^\/api\/tables\/([^\/]+)\/([^\/]+)$/);
-  if (recordMatch) {
-    const tableName = decodeURIComponent(recordMatch[1]);
-    const recordId = decodeURIComponent(recordMatch[2]);
-    return handleSingleRecord(request, tableName, recordId);
-  }
-
-  // Route non trouvée
-  return new Response(
-    JSON.stringify({
-      success: false,
-      error: "Not Found",
-      message: `Route '${pathname}' not found`,
-      code: "ROUTE_NOT_FOUND",
-      availableRoutes: [
-        "GET /health",
-        "GET /api/tables",
-        "GET /api/tables/:tableName",
-        "GET /api/tables/:tableName/:recordId",
-        "GET /api/stats",
-        "GET /api/benchmark"
-      ]
-    }),
-    {
-      status: 404,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
+    case "/api/refresh":
+      if (method === "POST") {
+        response = await handleRefresh(backend, worker);
+      } else {
+        response = new Response(JSON.stringify({ error: "Method not allowed" }), {
+          status: 405,
+          headers: { "Content-Type": "application/json" }
+        });
       }
-    }
-  );
+      break;
+
+    default:
+      // Route dynamique pour les tables: /api/tables/:tableName ou /api/tables/:tableName/:recordId
+      const tableMatch = pathname.match(/^\/api\/tables\/([^\/]+)(?:\/(.+))?$/);
+      if (tableMatch) {
+        const tableName = decodeURIComponent(tableMatch[1]);
+        const recordId = tableMatch[2] ? decodeURIComponent(tableMatch[2]) : undefined;
+
+        if (recordId) {
+          // Route: /api/tables/:tableName/:recordId
+          response = await handleSingleRecord(backend, tableName, recordId);
+        } else {
+          // Route: /api/tables/:tableName
+          response = await handleTableRecords(backend, tableName, url);
+        }
+      } else {
+        response = new Response(JSON.stringify({
+          error: "Route not found",
+          backend,
+          availableRoutes: [
+            "GET /health",
+            "GET /api/tables",
+            "GET /api/tables/:tableName",
+            "GET /api/tables/:tableName/:recordId",
+            "GET /api/stats",
+            "POST /api/refresh"
+          ]
+        }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      break;
+  }
+
+  return addCorsHeaders(response);
 }
 
 /**
- * Démarre le serveur API
+ * Démarre le serveur API Redis sur le port spécifié
  */
-export async function startApiServer(port: number = 3000): Promise<void> {
-  console.log("=🚀 Démarrage du serveur API...");
+export async function startApiServer(port: number): Promise<void> {
+  const backend = 'redis';
+  console.log(`🌐 Démarrage du serveur API Redis sur le port ${port}`);
 
-  const server = Bun.serve({
+  Bun.serve({
     port,
     hostname: "0.0.0.0",
-    fetch: handleRequest,
-
-    // Gestion d'erreurs du serveur
-    error(error) {
+    fetch: (request) => handleRequest(request, backend),
+    error: (error) => {
       console.error("❌ Erreur serveur:", error);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Internal Server Error",
-          message: "An unexpected error occurred",
-          code: "INTERNAL_SERVER_ERROR"
-        }),
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json"
-          }
-        }
-      );
+      return new Response(JSON.stringify({ error: "Internal server error", backend }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      });
     }
   });
 
-  console.log(`✅ Serveur API démarré sur http://localhost:${port}`);
-  console.log(`=📋 Endpoints disponibles:`);
-  console.log(`   GET  /health                     - Health check`);
-  console.log(`   GET  /api/tables                 - Liste des tables`);
-  console.log(`   GET  /api/tables/:table          - Records d'une table`);
-  console.log(`   GET  /api/tables/:table/:id      - Record spécifique`);
-  console.log(`   GET  /api/stats                  - Statistiques du cache`);
-  console.log(`   GET  /api/benchmark              - Benchmark de performance`);
-  console.log(`🔐 Authentication: Bearer Token requis pour /api/*`);
+  console.log(`✅ Serveur API Redis démarré: http://localhost:${port}`);
+  console.log(`📊 Health check: http://localhost:${port}/health`);
+  console.log(`📋 Tables: http://localhost:${port}/api/tables`);
+  console.log(`📈 Stats: http://localhost:${port}/api/stats`);
+}
+
+/**
+ * Démarre le serveur API SQLite sur le port spécifié
+ */
+export async function startSQLiteApiServer(port: number, worker?: Worker): Promise<void> {
+  const backend = 'sqlite';
+  console.log(`🌐 Démarrage du serveur API SQLite sur le port ${port}`);
+
+  Bun.serve({
+    port,
+    hostname: "0.0.0.0",
+    fetch: (request) => handleRequest(request, backend, worker),
+    error: (error) => {
+      console.error("❌ Erreur serveur:", error);
+      return new Response(JSON.stringify({ error: "Internal server error", backend }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+  });
+
+  console.log(`✅ Serveur API SQLite démarré: http://localhost:${port}`);
+  console.log(`📊 Health check: http://localhost:${port}/health`);
+  console.log(`📋 Tables: http://localhost:${port}/api/tables`);
+  console.log(`📈 Stats: http://localhost:${port}/api/stats`);
+  console.log(`🔄 Refresh: POST http://localhost:${port}/api/refresh`);
 }
 
 // Export pour usage externe

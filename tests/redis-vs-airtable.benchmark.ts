@@ -8,7 +8,7 @@
 import { base } from "../src/lib/airtable/index";
 import { AIRTABLE_TABLE_NAMES } from "../src/lib/airtable/schema";
 
-const API_BASE = "http://localhost:3000";
+const API_BASE = "https://aircache-production.up.railway.app/";
 const BEARER_TOKEN = process.env.BEARER_TOKEN || "test-token";
 
 interface BenchmarkResult {

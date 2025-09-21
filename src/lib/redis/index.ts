@@ -154,6 +154,138 @@ class RedisService {
       `SCARD ${key}`
     );
   }
+
+  // Méthodes pour compatibilité avec les backends
+  async getTables(): Promise<string[]> {
+    const { getActiveNamespace, keyTables } = await import("./helpers");
+    const activeNS = await getActiveNamespace();
+    const tablesKey = keyTables(activeNS);
+    return this.smembers(tablesKey);
+  }
+
+  async getTableRecords(tableName: string, page: number = 1, limit: number = 100): Promise<any[]> {
+    const { getActiveNamespace, keyIndex, keyRecord } = await import("./helpers");
+    const activeNS = await getActiveNamespace();
+    const indexKey = keyIndex(activeNS, tableName);
+
+    // Récupérer les IDs avec pagination
+    const start = (page - 1) * limit;
+    const end = start + limit - 1;
+    const recordIds = await this.safeOperation(
+      () => this.client.zrange(indexKey, start, end),
+      `ZRANGE ${indexKey}`
+    );
+
+    if (recordIds.length === 0) return [];
+
+    // Récupérer les records en lot
+    const recordKeys = recordIds.map(id => keyRecord(activeNS, tableName, id));
+    const records = await this.mget(recordKeys);
+
+    return records
+      .filter(record => record !== null)
+      .map(record => JSON.parse(record!));
+  }
+
+  async getRecord(tableName: string, recordId: string): Promise<any | null> {
+    const { getActiveNamespace, keyRecord } = await import("./helpers");
+    const activeNS = await getActiveNamespace();
+    const recordKey = keyRecord(activeNS, tableName, recordId);
+    const record = await this.get(recordKey);
+    return record ? JSON.parse(record) : null;
+  }
+
+  async setRecord(tableName: string, recordId: string, data: any): Promise<void> {
+    const { getActiveNamespace, keyRecord, keyIndex } = await import("./helpers");
+    const activeNS = await getActiveNamespace();
+    const recordKey = keyRecord(activeNS, tableName, recordId);
+    const indexKey = keyIndex(activeNS, tableName);
+
+    await Promise.all([
+      this.set(recordKey, JSON.stringify(data)),
+      this.safeOperation(
+        () => this.client.zadd(indexKey, Date.now(), recordId),
+        `ZADD ${indexKey}`
+      )
+    ]);
+  }
+
+  async setTableIndex(tableName: string, recordIds: string[]): Promise<void> {
+    const { getActiveNamespace, keyIndex } = await import("./helpers");
+    const activeNS = await getActiveNamespace();
+    const indexKey = keyIndex(activeNS, tableName);
+
+    // Clear existing index
+    await this.del(indexKey);
+
+    // Add all record IDs
+    if (recordIds.length > 0) {
+      const args = [];
+      for (let i = 0; i < recordIds.length; i++) {
+        args.push(Date.now() + i, recordIds[i]);
+      }
+      await this.safeOperation(
+        () => this.client.zadd(indexKey, ...args),
+        `ZADD ${indexKey} bulk`
+      );
+    }
+  }
+
+  async setTables(tableNames: string[]): Promise<void> {
+    const { getActiveNamespace, keyTables } = await import("./helpers");
+    const activeNS = await getActiveNamespace();
+    const tablesKey = keyTables(activeNS);
+
+    // Clear existing tables set
+    await this.del(tablesKey);
+
+    // Add all table names
+    for (const tableName of tableNames) {
+      await this.sadd(tablesKey, tableName);
+    }
+  }
+
+  async getActiveNamespace(): Promise<string> {
+    const { getActiveNamespace } = await import("./helpers");
+    return getActiveNamespace();
+  }
+
+  async getInactiveNamespace(): Promise<string> {
+    const { getActiveNamespace, inactiveOf } = await import("./helpers");
+    const active = await getActiveNamespace();
+    return inactiveOf(active);
+  }
+
+  async flipActiveNamespace(): Promise<void> {
+    const { flipActiveNS } = await import("./helpers");
+    const inactive = await this.getInactiveNamespace();
+    await flipActiveNS(inactive);
+  }
+
+  async getStats(): Promise<any> {
+    const activeNS = await this.getActiveNamespace();
+    const tables = await this.getTables();
+
+    let totalRecords = 0;
+    for (const table of tables) {
+      const { keyIndex } = await import("./helpers");
+      const indexKey = keyIndex(activeNS, table);
+      const count = await this.scard(indexKey);
+      totalRecords += count;
+    }
+
+    return {
+      activeNamespace: activeNS,
+      tables: tables.length,
+      totalRecords,
+      lastUpdate: new Date().toISOString()
+    };
+  }
+
+  async close(): Promise<void> {
+    this.isConnected = false;
+    console.log("🔄 Connexion Redis fermée");
+  }
 }
 
 // Instance singleton du service Redis
@@ -164,6 +296,9 @@ export const redis = redisService.native;
 
 // Export du service pour les op�rations s�curis�es
 export { redisService as RedisService };
+
+// Export des helpers pour compatibilit�
+export { withLock, getActiveNamespace, flipActiveNS, inactiveOf } from "./helpers";
 
 // Types pour TypeScript
 export type { RedisClient };

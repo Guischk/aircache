@@ -5,7 +5,7 @@
   "author": "Guischk",
   "license": "MIT",
   "keywords": ["airtable", "cache", "redis", "api", "bun", "typescript"],
-  "main": "dist/index.js",
+  "main": "index.ts",
   "module": "index.ts",
   "type": "module",
   "private": true,
@@ -18,17 +18,22 @@
     "test:api": "bun test tests/api.test.ts",
     "test:integration": "bun tests/integration.test.ts",
     "test:performance": "bun tests/performance.test.ts",
-    "test:all": "bun run-tests.ts",
+    "test:all": "bun scripts/run-tests.ts",
     "benchmark:redis-vs-airtable": "bun tests/redis-vs-airtable.benchmark.ts",
-    "security-check": "bun security-check.ts",
-    "demo": "bun demo.ts",
+    "benchmark:sqlite-vs-redis": "bun tests/sqlite-vs-redis.benchmark.ts",
+    "benchmark:sqlite-vs-airtable": "bun tests/sqlite-vs-airtable.benchmark.ts",
+    "test:deployment": "bun scripts/test-sqlite-deployment.ts",
+    "security-check": "bun scripts/security-check.ts",
+    "demo": "bun scripts/demo.ts",
     "airtable:types": "airtable-types-gen --output src/lib/airtable/schema.ts -f",
-    "clean": "rm -rf dist *.md performance-report.md integration-report.md redis-vs-airtable-comparison.md"
+    "clean": "rm -rf dist *.md *-report.md *-comparison.md"
   },
   "exports": {
     ".": "./index.ts",
     "./api": "./src/api/index.ts",
-    "./redis": "./src/lib/redis/index.ts"
+    "./server": "./src/server/index.ts",
+    "./redis": "./src/lib/redis/index.ts",
+    "./sqlite": "./src/lib/sqlite/index.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"

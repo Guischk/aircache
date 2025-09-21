@@ -1,62 +1,88 @@
 # Aircache
 
-Un outil pour générer et mettre en cache des données Airtable.
+High-performance Airtable cache service with REST API and support for both Redis and SQLite backends.
 
-## Configuration
-
-### 1. Variables d'environnement
-
-Copiez le fichier `env.example` vers `.env` et configurez vos variables :
+## 🚀 Quick Start
 
 ```bash
-cp env.example .env
+# Install dependencies
+bun install
+
+# Start the service (auto-detects backend)
+bun index.ts
+
+# Or start with hot reload
+bun --hot index.ts
 ```
 
-Remplissez les valeurs suivantes dans `.env` :
-- `AIRTABLE_API_KEY` : Votre clé API Airtable
-- `AIRTABLE_BASE_ID` : L'ID de votre base Airtable
-- `AIRTABLE_WORKSPACE_ID` : L'ID de votre workspace (optionnel)
+The service automatically detects which backend to use:
+- **SQLite**: Default, or when `REDIS_URL` is not set
+- **Redis**: When `REDIS_URL` environment variable is defined
 
-### 2. Configuration Airtable
+## 📊 API Endpoints
 
-Copiez les fichiers de configuration :
+- `GET /health` - Health check
+- `GET /api/tables` - List all tables
+- `GET /api/tables/:table` - Get records from a table
+- `GET /api/tables/:table/:id` - Get a specific record
+- `GET /api/stats` - Cache statistics
+- `POST /api/refresh` - Manual cache refresh
+
+## 🔧 Configuration
+
+Required environment variables:
+- `AIRTABLE_PERSONAL_TOKEN` - Airtable API token
+- `AIRTABLE_BASE_ID` - Airtable base ID
+- `BEARER_TOKEN` - API authentication token
+
+Optional:
+- `REDIS_URL` - Redis connection (enables Redis backend)
+- `PORT` - Server port (default: 3000)
+- `REFRESH_INTERVAL` - Cache refresh interval in seconds
+
+## 📖 Documentation
+
+- [Benchmarks](docs/BENCHMARK.md) - Performance benchmarks
+- [Security](docs/SECURITY.md) - Security documentation
+- [Scripts](docs/SCRIPTS.md) - Available scripts
+- [Deployment](docs/RAILWAY-DEPLOYMENT.md) - Railway deployment guide
+- [Migration](docs/MIGRATION-SQLITE.md) - SQLite migration guide
+
+## 🏗️ Architecture
+
+```
+src/
+├── server/           # Server initialization
+├── api/
+│   ├── handlers/     # Route handlers
+│   └── middleware/   # Auth, CORS middleware
+├── worker/
+│   └── backends/     # Redis/SQLite implementations
+├── lib/
+│   ├── airtable/     # Airtable client
+│   ├── redis/        # Redis helpers
+│   ├── sqlite/       # SQLite helpers
+│   └── utils/        # Utilities
+tests/                # Tests and benchmarks
+scripts/              # Utility scripts
+docs/                 # Documentation
+```
+
+## 🧪 Testing
+
 ```bash
-cp src/airtable/config.example.ts src/airtable/config.ts
-cp src/airtable/schema.example.ts src/airtable/schema.ts
+# Run all tests
+bun test
+
+# Run specific benchmarks
+bun tests/sqlite-vs-airtable.benchmark.ts
+bun tests/sqlite-vs-redis.benchmark.ts
 ```
 
-Puis adaptez les fichiers selon vos besoins.
+## 📦 Build
 
-## Sécurité
-
-⚠️ **Important** : Les fichiers suivants contiennent des informations sensibles et ne doivent PAS être commités :
-
-- `.env`
-- `src/airtable/config.ts`
-- `src/airtable/schema.ts`
-- `src/airtable/secrets.ts`
-- `airtable-config.json`
-- `airtable-schema.json`
-- Dossier `cache/`
-
-Ces fichiers sont automatiquement exclus par le `.gitignore`.
-
-## Structure recommandée
-
-```
-src/airtable/
-├── config.example.ts    # Template de configuration
-├── config.ts           # Configuration réelle (gitignoré)
-├── schema.example.ts   # Template de schéma
-├── schema.ts          # Schéma réel (gitignoré)
-├── client.ts          # Client Airtable
-├── cache.ts           # Logique de cache
-└── types.ts           # Types TypeScript
+```bash
+bun run build
 ```
 
-## Développement
-
-1. Installez les dépendances
-2. Configurez vos variables d'environnement
-3. Copiez et adaptez les fichiers de configuration
-4. Lancez le développement
+Built with [Bun](https://bun.sh) 🥟
