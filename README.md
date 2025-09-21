@@ -1,6 +1,6 @@
 # Aircache
 
-High-performance Airtable cache service with REST API and support for both Redis and SQLite backends.
+SQLite-based caching service for Airtable data with REST API.
 
 ## 🚀 Quick Start
 
@@ -8,16 +8,12 @@ High-performance Airtable cache service with REST API and support for both Redis
 # Install dependencies
 bun install
 
-# Start the service (auto-detects backend)
+# Start the service
 bun index.ts
 
 # Or start with hot reload
 bun --hot index.ts
 ```
-
-The service automatically detects which backend to use:
-- **SQLite**: Default, or when `REDIS_URL` is not set
-- **Redis**: When `REDIS_URL` environment variable is defined
 
 ## 📊 API Endpoints
 
@@ -31,14 +27,15 @@ The service automatically detects which backend to use:
 ## 🔧 Configuration
 
 Required environment variables:
+
 - `AIRTABLE_PERSONAL_TOKEN` - Airtable API token
 - `AIRTABLE_BASE_ID` - Airtable base ID
 - `BEARER_TOKEN` - API authentication token
 
 Optional:
-- `REDIS_URL` - Redis connection (enables Redis backend)
+
 - `PORT` - Server port (default: 3000)
-- `REFRESH_INTERVAL` - Cache refresh interval in seconds
+- `REFRESH_INTERVAL` - Cache refresh interval in seconds (default: 86400 = 24 hours)
 
 ## 📖 Documentation
 
@@ -57,10 +54,9 @@ src/
 │   ├── handlers/     # Route handlers
 │   └── middleware/   # Auth, CORS middleware
 ├── worker/
-│   └── backends/     # Redis/SQLite implementations
+│   └── backends/     # SQLite implementation
 ├── lib/
 │   ├── airtable/     # Airtable client
-│   ├── redis/        # Redis helpers
 │   ├── sqlite/       # SQLite helpers
 │   └── utils/        # Utilities
 tests/                # Tests and benchmarks
@@ -74,9 +70,8 @@ docs/                 # Documentation
 # Run all tests
 bun test
 
-# Run specific benchmarks
+# Run specific benchmark
 bun tests/sqlite-vs-airtable.benchmark.ts
-bun tests/sqlite-vs-redis.benchmark.ts
 ```
 
 ## 📦 Build

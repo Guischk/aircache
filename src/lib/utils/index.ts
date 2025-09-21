@@ -6,10 +6,10 @@
  * @returns A cleaned string with only lowercase letters and numbers
  *
  * @example
- * normalizeForRedis("Hello World! 123") // returns "helloworld123"
- * normalizeForRedis("Test@#$%") // returns "test"
+ * normalizeKey("Hello World! 123") // returns "helloworld123"
+ * normalizeKey("Test@#$%") // returns "test"
  */
-export const normalizeForRedis = (str: string) => {
+export const normalizeKey = (str: string) => {
   return str
     .toLowerCase()
     .replace(/ /g, "")

@@ -169,7 +169,7 @@ The following files contain sensitive data and are git-ignored:
 
 ### Key Utilities
 
-- `normalizeForRedis()`: Sanitizes strings for Redis key usage
+- `normalizeKey()`: Sanitizes strings for Redis key usage
 - `keyRecord()`, `keyIndex()`, `keyTables()`: Generate consistent Redis keys
 - `withLock()`: Provides distributed locking functionality
 - `flipActiveNS()`: Atomic namespace switching

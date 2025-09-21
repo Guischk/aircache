@@ -13,7 +13,7 @@ import {
 import { updateSchemaWithRetry, validateSchema } from "../lib/airtable/schema-updater";
 import { AIRTABLE_TABLE_NAMES } from "../lib/airtable/schema";
 import { base } from "../lib/airtable";
-import { normalizeForRedis } from "../lib/utils";
+import { normalizeKey } from "../lib/utils";
 import { flattenRecord } from "airtable-types-gen";
 import { join } from "path";
 
@@ -67,7 +67,7 @@ self.onmessage = async (e) => {
       try {
         console.log(`🔄 Traitement de la table: ${table}`);
         const tableInstance = base(table);
-        const normalizedTableName = normalizeForRedis(table);
+        const normalizedTableName = normalizeKey(table);
         const results = await tableInstance.select().all();
 
         console.log(`📋 ${table}: ${results.length} enregistrements trouvés`);

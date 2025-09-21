@@ -1,9 +1,9 @@
 /**
- * Point d'entrée principal du service Aircache
- * Détecte automatiquement le backend (Redis/SQLite) et démarre le serveur approprié
+ * Main entry point for Aircache service
+ * SQLite-only caching service for Airtable data
  */
 
 import { startServer } from "./src/server/index";
 
-// Démarrage du serveur avec détection automatique du backend
+// Start the SQLite server
 await startServer();

@@ -13,7 +13,7 @@ import {
   getCacheStats,
   flipActiveVersion
 } from "../lib/sqlite/helpers";
-import { normalizeForRedis } from "../lib/utils/index";
+import { normalizeKey } from "../lib/utils/index";
 import { AIRTABLE_TABLE_NAMES } from "../lib/airtable/schema";
 import { requireAuth, logAuthAttempt } from "./auth";
 import type {
@@ -135,7 +135,7 @@ export async function handleSQLiteTables(request: Request): Promise<Response> {
     }
 
     // Normaliser les noms de tables pour la cohérence
-    const normalizedTables = tables.length > 0 ? tables.map(table => normalizeForRedis(table)) : [...AIRTABLE_TABLE_NAMES];
+    const normalizedTables = tables.length > 0 ? tables.map(table => normalizeKey(table)) : [...AIRTABLE_TABLE_NAMES];
 
     const response: TablesListResponse = {
       tables: normalizedTables,
@@ -173,7 +173,7 @@ export async function handleSQLiteTableRecords(request: Request, tableName: stri
 
   try {
     // Vérifier que la table existe (accepter les noms originaux ou normalisés)
-    const originalTableNames = AIRTABLE_TABLE_NAMES.map(name => normalizeForRedis(name));
+    const originalTableNames = AIRTABLE_TABLE_NAMES.map(name => normalizeKey(name));
     if (!originalTableNames.includes(tableName as any) && !AIRTABLE_TABLE_NAMES.includes(tableName as any)) {
       return createErrorResponse(
         "Table not found",
@@ -183,7 +183,7 @@ export async function handleSQLiteTableRecords(request: Request, tableName: stri
     }
 
     const version = await getActiveVersion();
-    const normalizedTableName = normalizeForRedis(tableName);
+    const normalizedTableName = normalizeKey(tableName);
 
     // Pagination
     const url = new URL(request.url);
@@ -203,7 +203,7 @@ export async function handleSQLiteTableRecords(request: Request, tableName: stri
 
     // Si aucun record, essayer avec le nom original
     if (totalCount === 0) {
-      const originalTableName = AIRTABLE_TABLE_NAMES.find(name => normalizeForRedis(name) === normalizedTableName);
+      const originalTableName = AIRTABLE_TABLE_NAMES.find(name => normalizeKey(name) === normalizedTableName);
       if (originalTableName) {
         allRecords = await getTableRecords(originalTableName, false, limit, offset);
         totalCount = await countTableRecords(originalTableName, false);
@@ -272,7 +272,7 @@ export async function handleSQLiteSingleRecord(request: Request, tableName: stri
 
   try {
     // Vérifier que la table existe (accepter les noms originaux ou normalisés)
-    const originalTableNames = AIRTABLE_TABLE_NAMES.map(name => normalizeForRedis(name));
+    const originalTableNames = AIRTABLE_TABLE_NAMES.map(name => normalizeKey(name));
     if (!originalTableNames.includes(tableName as any) && !AIRTABLE_TABLE_NAMES.includes(tableName as any)) {
       return createErrorResponse(
         "Table not found",
@@ -282,7 +282,7 @@ export async function handleSQLiteSingleRecord(request: Request, tableName: stri
     }
 
     const version = await getActiveVersion();
-    const normalizedTableName = normalizeForRedis(tableName);
+    const normalizedTableName = normalizeKey(tableName);
 
     // Filtrage des champs optionnel
     const url = new URL(request.url);
@@ -295,7 +295,7 @@ export async function handleSQLiteSingleRecord(request: Request, tableName: stri
 
     // Si aucun record, essayer avec le nom original
     if (!recordData) {
-      const originalTableName = AIRTABLE_TABLE_NAMES.find(name => normalizeForRedis(name) === normalizedTableName);
+      const originalTableName = AIRTABLE_TABLE_NAMES.find(name => normalizeKey(name) === normalizedTableName);
       if (originalTableName) {
         recordData = await getRecord(originalTableName, recordId, false);
 

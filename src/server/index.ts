@@ -1,150 +1,99 @@
 /**
- * Point d'entrée unifié du serveur Aircache
- * Détecte automatiquement le backend (Redis/SQLite) à utiliser
+ * Main server entry point for Aircache
+ * SQLite-only caching service configuration
  */
 
-export type BackendType = 'redis' | 'sqlite';
-
 export interface ServerConfig {
-  backend: BackendType;
   port: number;
   refreshInterval: number;
 }
 
-export function detectBackend(): BackendType {
-  // Si Redis URL est défini, utiliser Redis, sinon SQLite
-  if (process.env.REDIS_URL && process.env.REDIS_URL !== '') {
-    return 'redis';
-  }
-  return 'sqlite';
-}
-
 export function getServerConfig(): ServerConfig {
-  const backend = detectBackend();
-
   return {
-    backend,
     port: parseInt(process.env.PORT || "3000"),
-    refreshInterval: parseInt(process.env.REFRESH_INTERVAL || (backend === 'sqlite' ? "86400" : "5400"))
+    refreshInterval: parseInt(process.env.REFRESH_INTERVAL || "86400") // Default to 24 hours for SQLite
   };
 }
 
 export async function startServer(config?: Partial<ServerConfig>): Promise<void> {
   const fullConfig = { ...getServerConfig(), ...config };
 
-  console.log(`🚀 Démarrage du service Aircache (${fullConfig.backend.toUpperCase()})`);
+  console.log("🚀 Starting Aircache service (SQLite)");
   console.log(`📊 Port: ${fullConfig.port}`);
   console.log(`⏰ Refresh: ${fullConfig.refreshInterval}s`);
 
-  if (fullConfig.backend === 'sqlite') {
-    await startSQLiteServer(fullConfig);
-  } else {
-    await startRedisServer(fullConfig);
-  }
+  await startSQLiteServer(fullConfig);
 }
 
 async function startSQLiteServer(config: ServerConfig): Promise<void> {
-  const { startSQLiteApiServer } = await import("../api/sqlite-server");
+  const { startSQLiteApiServer } = await import("../api/index");
 
-  console.log("🔄 Démarrage du worker SQLite...");
+  console.log("🔄 Starting SQLite worker...");
 
   const worker = new Worker("src/worker/index.ts", {
     workerData: { backend: 'sqlite' }
   });
 
+  // Initialize SQLite service
+  console.log("📊 Initializing SQLite databases...");
+  const { sqliteService } = await import("../lib/sqlite/index");
+  await sqliteService.connect();
+  console.log("✅ SQLite databases initialized");
+
   worker.onmessage = (e) => {
     if (e.data?.type === "refresh:done") {
-      console.log("✅ Refresh terminé:", e.data.stats);
+      console.log("✅ Refresh completed:", e.data.stats);
     } else if (e.data?.type === "refresh:error") {
-      console.error("❌ Erreur refresh:", e.data.error);
+      console.error("❌ Refresh error:", e.data.error);
     } else {
-      console.log("📨 Worker SQLite:", e.data);
+      console.log("📨 SQLite Worker:", e.data);
     }
   };
 
   worker.onerror = (error) => {
-    console.error("❌ Erreur Worker SQLite:", error);
+    console.error("❌ SQLite Worker error:", error);
   };
 
-  // Démarrage du serveur API
+  // Start the API server
   await startSQLiteApiServer(config.port, worker);
 
-  // Premier refresh au démarrage
-  console.log("🔄 Premier refresh au démarrage...");
+  // Initial refresh on startup
+  console.log("🔄 Starting initial refresh...");
   worker.postMessage({ type: "refresh:start" });
 
-  // Refresh périodique
+  // Periodic refresh
   setInterval(() => {
-    console.log("⏰ Refresh périodique déclenché");
+    console.log("⏰ Periodic refresh triggered");
     worker.postMessage({ type: "refresh:start" });
   }, config.refreshInterval * 1000);
 
-  console.log(`⏰ Refresh programmé toutes les ${config.refreshInterval/3600} heures`);
-  console.log(`✅ Service SQLite complet démarré !`);
-  console.log(`📊 Bases de données: data/aircache-v1.sqlite, data/aircache-v2.sqlite`);
+  console.log(`⏰ Refresh scheduled every ${config.refreshInterval/3600} hours`);
+  console.log(`✅ SQLite service fully started!`);
+  console.log(`📊 Databases: data/aircache-v1.sqlite, data/aircache-v2.sqlite`);
   console.log(`📎 Attachments: ${process.env.STORAGE_PATH || './data/attachments'}`);
 
-  setupGracefulShutdown(worker, 'sqlite');
+  setupGracefulShutdown(worker);
 }
 
-async function startRedisServer(config: ServerConfig): Promise<void> {
-  const { startApiServer } = await import("../api/index");
-
-  // Démarrage du serveur API
-  await startApiServer(config.port);
-
-  // Démarrage du worker de cache
-  console.log("🔄 Démarrage du worker Redis...");
-
-  const worker = new Worker("src/worker/index.ts", {
-    workerData: { backend: 'redis' }
-  });
-
-  worker.onmessage = (e) => {
-    console.log("📨 Worker Redis:", e.data);
-  };
-
-  worker.onerror = (error) => {
-    console.error("❌ Erreur Worker Redis:", error);
-  };
-
-  // Premier refresh au démarrage
-  worker.postMessage({ type: "refresh:start" });
-
-  // Refresh périodique
-  setInterval(() => {
-    worker.postMessage({ type: "refresh:start" });
-  }, config.refreshInterval * 1000);
-
-  console.log(`⏰ Refresh programmé toutes les ${config.refreshInterval} secondes`);
-  console.log(`✅ Service Redis complet démarré !`);
-
-  setupGracefulShutdown(worker, 'redis');
-}
-
-function setupGracefulShutdown(worker: Worker, backend: BackendType): void {
+function setupGracefulShutdown(worker: Worker): void {
   const shutdown = async (signal: string) => {
-    console.log(`\n🛑 Arrêt ${signal}...`);
+    console.log(`\n🛑 Shutdown ${signal}...`);
 
     try {
       worker.terminate();
 
-      if (backend === 'sqlite') {
-        const { sqliteService } = await import("../lib/sqlite/index");
-        await sqliteService.close();
-      } else {
-        const { redisService } = await import("../lib/redis/index");
-        await redisService.close();
-      }
+      // Close SQLite service
+      const { sqliteService } = await import("../lib/sqlite/index");
+      await sqliteService.close();
 
-      console.log('✅ Service arrêté proprement');
+      console.log('✅ Service stopped gracefully');
       process.exit(0);
     } catch (error) {
-      console.error('❌ Erreur lors de l\'arrêt:', error);
+      console.error('❌ Error during shutdown:', error);
       process.exit(1);
     }
   };
 
-  process.on('SIGINT', () => shutdown('gracieux'));
-  process.on('SIGTERM', () => shutdown('demandé'));
+  process.on('SIGINT', () => shutdown('graceful'));
+  process.on('SIGTERM', () => shutdown('requested'));
 }

@@ -1,11 +1,8 @@
 /**
- * Worker unifié pour la synchronisation Redis et SQLite
+ * SQLite worker for data synchronization
  */
 
 import { SQLiteBackend } from "./backends/sqlite-backend";
-import { RedisBackend } from "./backends/redis-backend";
-
-export type WorkerBackend = 'redis' | 'sqlite';
 
 export interface WorkerMessage {
   type: 'refresh:start' | 'refresh:stop' | 'stats:get';
@@ -19,25 +16,17 @@ export interface WorkerResponse {
   manual?: boolean;
 }
 
-class UnifiedWorker {
-  private backend: SQLiteBackend | RedisBackend;
-  private backendType: WorkerBackend;
+class SQLiteWorker {
+  private backend: SQLiteBackend;
   private isRefreshing = false;
 
-  constructor(backendType: WorkerBackend) {
-    this.backendType = backendType;
-
-    if (backendType === 'sqlite') {
-      this.backend = new SQLiteBackend();
-    } else {
-      this.backend = new RedisBackend();
-    }
-
-    console.log(`🔧 [Worker] Initialisé avec backend: ${backendType.toUpperCase()}`);
+  constructor() {
+    this.backend = new SQLiteBackend();
+    console.log("🔧 [Worker] Initialized with SQLite backend");
   }
 
   async handleMessage(message: WorkerMessage): Promise<void> {
-    console.log(`📨 [Worker] Message reçu:`, message);
+    console.log(`📨 [Worker] Message received:`, message);
 
     switch (message.type) {
       case 'refresh:start':
@@ -53,20 +42,20 @@ class UnifiedWorker {
         break;
 
       default:
-        console.warn(`⚠️ [Worker] Message non reconnu:`, message);
+        console.warn(`⚠️ [Worker] Unknown message:`, message);
     }
   }
 
   private async handleRefreshStart(manual = false): Promise<void> {
     if (this.isRefreshing) {
-      console.log("⏭️ [Worker] Refresh déjà en cours, ignoré");
+      console.log("⏭️ [Worker] Refresh already in progress, skipped");
       return;
     }
 
     this.isRefreshing = true;
 
     try {
-      console.log(`🚀 [Worker] Début du refresh ${manual ? 'manuel' : 'automatique'} (${this.backendType})`);
+      console.log(`🚀 [Worker] Starting ${manual ? 'manual' : 'automatic'} refresh`);
 
       const stats = await this.backend.refreshData();
 
@@ -77,7 +66,7 @@ class UnifiedWorker {
       });
 
     } catch (error) {
-      console.error("❌ [Worker] Erreur lors du refresh:", error);
+      console.error("❌ [Worker] Error during refresh:", error);
 
       this.postMessage({
         type: 'refresh:error',
@@ -92,13 +81,13 @@ class UnifiedWorker {
 
   private async handleRefreshStop(): Promise<void> {
     if (!this.isRefreshing) {
-      console.log("ℹ️ [Worker] Aucun refresh en cours");
+      console.log("ℹ️ [Worker] No refresh in progress");
       return;
     }
 
-    console.log("🛑 [Worker] Arrêt du refresh demandé");
-    // Note: Dans une implémentation plus avancée, on pourrait
-    // implémenter une logique d'annulation
+    console.log("🛑 [Worker] Refresh stop requested");
+    // Note: In a more advanced implementation, we could
+    // implement cancellation logic
     this.isRefreshing = false;
   }
 
@@ -112,7 +101,7 @@ class UnifiedWorker {
       });
 
     } catch (error) {
-      console.error("❌ [Worker] Erreur lors de la récupération des stats:", error);
+      console.error("❌ [Worker] Error retrieving stats:", error);
 
       this.postMessage({
         type: 'refresh:error',
@@ -123,49 +112,39 @@ class UnifiedWorker {
 
   private postMessage(response: WorkerResponse): void {
     if (typeof self !== 'undefined' && self.postMessage) {
-      // Context de Web Worker
+      // Web Worker context
       self.postMessage(response);
     } else {
-      // Context de test ou développement
+      // Test or development context
       console.log("📤 [Worker] Response:", response);
     }
   }
 
   async close(): Promise<void> {
-    console.log("🔄 [Worker] Fermeture...");
+    console.log("🔄 [Worker] Closing...");
 
     if (this.isRefreshing) {
-      console.log("⏳ [Worker] Attente de la fin du refresh...");
-      // Dans une implémentation plus avancée, on attendrait la fin du refresh
+      console.log("⏳ [Worker] Waiting for refresh to complete...");
+      // In a more advanced implementation, we would wait for refresh completion
     }
 
     await this.backend.close();
-    console.log("✅ [Worker] Fermé");
+    console.log("✅ [Worker] Closed");
   }
 }
 
-// Détection du contexte d'exécution
-let worker: UnifiedWorker;
+// Worker execution context detection
+let worker: SQLiteWorker;
 
-// Initialisation du worker
+// Worker initialization
 function initializeWorker(): void {
-  // Déterminer le backend depuis les données du worker ou l'environnement
-  let backendType: WorkerBackend = 'sqlite'; // Par défaut
-
-  if (typeof self !== 'undefined' && 'workerData' in self) {
-    // Bun Worker context
-    backendType = (self as any).workerData?.backend || 'sqlite';
-  } else if (process.env.REDIS_URL && process.env.REDIS_URL !== '') {
-    // Variable d'environnement Redis définie
-    backendType = 'redis';
-  }
-
-  worker = new UnifiedWorker(backendType);
+  // Use SQLite as the only backend
+  worker = new SQLiteWorker();
 }
 
-// Gestionnaire de messages pour Web Worker
+// Message handler for Web Worker
 if (typeof self !== 'undefined' && self.onmessage !== undefined) {
-  // Context de Web Worker
+  // Web Worker context
   initializeWorker();
 
   self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
@@ -175,23 +154,23 @@ if (typeof self !== 'undefined' && self.onmessage !== undefined) {
   };
 
   self.onerror = (error) => {
-    console.error("❌ [Worker] Erreur globale:", error);
+    console.error("❌ [Worker] Global error:", error);
   };
 
-  console.log("✅ [Worker] Prêt à recevoir des messages");
+  console.log("✅ [Worker] Ready to receive messages");
 }
 
-// Export pour usage direct (tests, développement)
-export { UnifiedWorker };
+// Export for direct usage (tests, development)
+export { SQLiteWorker };
 
-// Auto-initialisation si exécuté directement
+// Auto-initialization if executed directly
 if (import.meta.main) {
-  console.log("🔧 [Worker] Exécution directe pour test");
+  console.log("🔧 [Worker] Direct execution for test");
 
   initializeWorker();
 
-  // Test basique
+  // Basic test
   await worker.handleMessage({ type: 'refresh:start', manual: true });
 
-  console.log("✅ [Worker] Test terminé");
+  console.log("✅ [Worker] Test completed");
 }

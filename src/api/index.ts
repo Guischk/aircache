@@ -1,52 +1,51 @@
 /**
- * Serveur API unifié supportant Redis et SQLite
+ * SQLite-only API server for Aircache
  */
 
-import { detectBackend, type BackendType } from "../server/index";
 import { handleHealth } from "./handlers/health";
 import { handleTables, handleTableRecords, handleSingleRecord } from "./handlers/tables";
 import { handleStats, handleRefresh } from "./handlers/stats";
 import { validateBearerToken, createUnauthorizedResponse, createOptionsResponse, addCorsHeaders } from "./middleware/auth";
 
 /**
- * Router unifié pour gérer les différentes routes avec support Redis/SQLite
+ * Request handler for SQLite API routes
  */
-async function handleRequest(request: Request, backend: BackendType, worker?: Worker): Promise<Response> {
+async function handleRequest(request: Request, worker?: Worker): Promise<Response> {
   const url = new URL(request.url);
   const pathname = url.pathname;
   const method = request.method;
 
-  console.log(`< ${method} ${pathname} (${backend})`);
+  console.log(`< ${method} ${pathname} (SQLite)`);
 
-  // Gestion CORS préliminaire
+  // Handle CORS preflight
   if (method === "OPTIONS") {
     return createOptionsResponse();
   }
 
-  // Authentification pour toutes les routes sauf /health
+  // Authentication for all routes except /health
   if (pathname !== "/health" && !validateBearerToken(request)) {
     return createUnauthorizedResponse();
   }
 
-  // Routes
+  // Route handling
   let response: Response;
 
   switch (pathname) {
     case "/health":
-      response = await handleHealth(backend);
+      response = await handleHealth();
       break;
 
     case "/api/tables":
-      response = await handleTables(backend);
+      response = await handleTables();
       break;
 
     case "/api/stats":
-      response = await handleStats(backend);
+      response = await handleStats();
       break;
 
     case "/api/refresh":
       if (method === "POST") {
-        response = await handleRefresh(backend, worker);
+        response = await handleRefresh(worker);
       } else {
         response = new Response(JSON.stringify({ error: "Method not allowed" }), {
           status: 405,
@@ -56,7 +55,7 @@ async function handleRequest(request: Request, backend: BackendType, worker?: Wo
       break;
 
     default:
-      // Route dynamique pour les tables: /api/tables/:tableName ou /api/tables/:tableName/:recordId
+      // Dynamic route for tables: /api/tables/:tableName or /api/tables/:tableName/:recordId
       const tableMatch = pathname.match(/^\/api\/tables\/([^\/]+)(?:\/(.+))?$/);
       if (tableMatch) {
         const tableName = decodeURIComponent(tableMatch[1]);
@@ -64,15 +63,14 @@ async function handleRequest(request: Request, backend: BackendType, worker?: Wo
 
         if (recordId) {
           // Route: /api/tables/:tableName/:recordId
-          response = await handleSingleRecord(backend, tableName, recordId);
+          response = await handleSingleRecord(tableName, recordId);
         } else {
           // Route: /api/tables/:tableName
-          response = await handleTableRecords(backend, tableName, url);
+          response = await handleTableRecords(tableName, url);
         }
       } else {
         response = new Response(JSON.stringify({
           error: "Route not found",
-          backend,
           availableRoutes: [
             "GET /health",
             "GET /api/tables",
@@ -93,52 +91,25 @@ async function handleRequest(request: Request, backend: BackendType, worker?: Wo
 }
 
 /**
- * Démarre le serveur API Redis sur le port spécifié
- */
-export async function startApiServer(port: number): Promise<void> {
-  const backend = 'redis';
-  console.log(`🌐 Démarrage du serveur API Redis sur le port ${port}`);
-
-  Bun.serve({
-    port,
-    hostname: "0.0.0.0",
-    fetch: (request) => handleRequest(request, backend),
-    error: (error) => {
-      console.error("❌ Erreur serveur:", error);
-      return new Response(JSON.stringify({ error: "Internal server error", backend }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" }
-      });
-    }
-  });
-
-  console.log(`✅ Serveur API Redis démarré: http://localhost:${port}`);
-  console.log(`📊 Health check: http://localhost:${port}/health`);
-  console.log(`📋 Tables: http://localhost:${port}/api/tables`);
-  console.log(`📈 Stats: http://localhost:${port}/api/stats`);
-}
-
-/**
- * Démarre le serveur API SQLite sur le port spécifié
+ * Start the SQLite API server on the specified port
  */
 export async function startSQLiteApiServer(port: number, worker?: Worker): Promise<void> {
-  const backend = 'sqlite';
-  console.log(`🌐 Démarrage du serveur API SQLite sur le port ${port}`);
+  console.log(`🌐 Starting SQLite API server on port ${port}`);
 
   Bun.serve({
     port,
     hostname: "0.0.0.0",
-    fetch: (request) => handleRequest(request, backend, worker),
+    fetch: (request) => handleRequest(request, worker),
     error: (error) => {
-      console.error("❌ Erreur serveur:", error);
-      return new Response(JSON.stringify({ error: "Internal server error", backend }), {
+      console.error("❌ Server error:", error);
+      return new Response(JSON.stringify({ error: "Internal server error" }), {
         status: 500,
         headers: { "Content-Type": "application/json" }
       });
     }
   });
 
-  console.log(`✅ Serveur API SQLite démarré: http://localhost:${port}`);
+  console.log(`✅ SQLite API server started: http://localhost:${port}`);
   console.log(`📊 Health check: http://localhost:${port}/health`);
   console.log(`📋 Tables: http://localhost:${port}/api/tables`);
   console.log(`📈 Stats: http://localhost:${port}/api/stats`);

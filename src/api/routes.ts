@@ -4,7 +4,7 @@
 
 import { redisService } from "../lib/redis/index";
 import { getActiveNamespace, keyRecord, keyIndex } from "../lib/redis/helpers";
-import { normalizeForRedis } from "../lib/utils/index";
+import { normalizeKey } from "../lib/utils/index";
 import { AIRTABLE_TABLE_NAMES } from "../lib/airtable/schema";
 import { requireAuth, logAuthAttempt, isAuthenticated } from "./auth";
 import type {
@@ -167,7 +167,7 @@ export async function handleTableRecords(request: Request, tableName: string): P
     }
 
     const namespace = await getActiveNamespace();
-    const normalizedTableName = normalizeForRedis(tableName);
+    const normalizedTableName = normalizeKey(tableName);
 
     // Pagination et filtrage des champs
     const url = new URL(request.url);
@@ -261,7 +261,7 @@ export async function handleSingleRecord(request: Request, tableName: string, re
     }
 
     const namespace = await getActiveNamespace();
-    const normalizedTableName = normalizeForRedis(tableName);
+    const normalizedTableName = normalizeKey(tableName);
     const key = keyRecord(namespace, normalizedTableName, recordId);
 
     // Filtrage des champs optionnel
@@ -336,7 +336,7 @@ export async function handleStats(request: Request): Promise<Response> {
     // Paralleliser le comptage pour réduire la latence
     const counts = await Promise.all(
       AIRTABLE_TABLE_NAMES.map(async (t) => {
-        const normalizedTableName = normalizeForRedis(t);
+        const normalizedTableName = normalizeKey(t);
         const indexKey = keyIndex(namespace, normalizedTableName);
         const count = await redisService.scard(indexKey);
         return { name: t, count };

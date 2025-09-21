@@ -8,7 +8,7 @@
 import { base } from "../src/lib/airtable/index";
 import { sqliteService } from "../src/lib/sqlite/index";
 import { AIRTABLE_TABLE_NAMES } from "../src/lib/airtable/schema";
-import { normalizeForRedis } from "../src/lib/utils/index";
+import { normalizeKey } from "../src/lib/utils/index";
 
 const API_BASE = process.env.API_BASE || "http://localhost:3000/";
 const BEARER_TOKEN = process.env.BEARER_TOKEN || "test-token";
@@ -142,7 +142,7 @@ class SQLiteVsAirtableBenchmark {
         for (let i = 0; i < totalRequests; i++) {
           const requestStart = performance.now();
           try {
-            const normalizedTableName = normalizeForRedis(tableName);
+            const normalizedTableName = normalizeKey(tableName);
             const response = await fetch(`${API_BASE}api/tables/${encodeURIComponent(normalizedTableName)}?limit=1`, {
               headers: {
                 'Authorization': `Bearer ${BEARER_TOKEN}`,
@@ -170,7 +170,7 @@ class SQLiteVsAirtableBenchmark {
         for (let i = 0; i < totalRequests; i++) {
           const requestStart = performance.now();
           try {
-            const normalizedTableName = normalizeForRedis(tableName);
+            const normalizedTableName = normalizeKey(tableName);
             const response = await fetch(`${API_BASE}api/tables/${encodeURIComponent(normalizedTableName)}?limit=10`, {
               headers: {
                 'Authorization': `Bearer ${BEARER_TOKEN}`,
@@ -193,7 +193,7 @@ class SQLiteVsAirtableBenchmark {
         for (let i = 0; i < totalRequests; i++) {
           const requestStart = performance.now();
           try {
-            const normalizedTableName = normalizeForRedis(tableName);
+            const normalizedTableName = normalizeKey(tableName);
             const response = await fetch(`${API_BASE}api/tables/${encodeURIComponent(normalizedTableName)}?limit=50`, {
               headers: {
                 'Authorization': `Bearer ${BEARER_TOKEN}`,
@@ -216,7 +216,7 @@ class SQLiteVsAirtableBenchmark {
         for (let i = 0; i < totalRequests; i++) {
           const requestStart = performance.now();
           try {
-            const normalizedTableName = normalizeForRedis(tableName);
+            const normalizedTableName = normalizeKey(tableName);
             const response = await fetch(`${API_BASE}api/tables/${encodeURIComponent(normalizedTableName)}?limit=1000`, {
               headers: {
                 'Authorization': `Bearer ${BEARER_TOKEN}`,

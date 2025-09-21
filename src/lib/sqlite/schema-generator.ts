@@ -4,7 +4,7 @@
  */
 
 import { AIRTABLE_TABLE_NAMES, type AirtableTableName } from "../airtable/schema";
-import { normalizeForRedis } from "../utils";
+import { normalizeKey } from "../utils";
 
 /**
  * Mapping des types Zod vers SQLite
@@ -24,7 +24,7 @@ const zodToSqliteType = (zodType: string): string => {
  * Génère le DDL pour une table Airtable
  */
 export function generateTableSchema(tableName: AirtableTableName): string {
-  const normalizedName = normalizeForRedis(tableName);
+  const normalizedName = normalizeKey(tableName);
 
   // Table de base pour stocker les données JSON (approche simple)
   return `
@@ -45,7 +45,7 @@ export function generateTableSchema(tableName: AirtableTableName): string {
  * Génère une table optimisée avec détection d'attachments
  */
 export function generateOptimizedTableSchema(tableName: AirtableTableName, sampleData?: any): string {
-  const normalizedName = normalizeForRedis(tableName);
+  const normalizedName = normalizeKey(tableName);
 
   // Détecter les champs d'attachments dans les données d'exemple
   const hasAttachments = sampleData && detectAttachmentFields(sampleData);
