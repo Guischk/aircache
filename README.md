@@ -9,7 +9,7 @@ _Open-source high-performance cache service with zero-downtime updates_
 [![GitHub stars](https://img.shields.io/github/stars/guischk/aircache?style=social)](https://github.com/guischk/aircache)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Bun](https://img.shields.io/badge/Built%20with-Bun-black)](https://bun.sh)
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/AvObXv?referralCode=3Ri9K9&utm_medium=integration&utm_source=template&utm_campaign=generic)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/aircache)
 
 **🎯 63.6% average latency reduction • 🛡️ 100% reliability • ⚡ Zero-downtime updates**
 
@@ -50,7 +50,7 @@ _Open-source high-performance cache service with zero-downtime updates_
 
 ### ⚡ **One-Click Deploy** (Recommended)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/AvObXv?referralCode=3Ri9K9&utm_medium=integration&utm_source=template&utm_campaign=generic)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/aircache)
 
 **💡 Tip:** Please support the project by using my Railway referral link: [https://railway.com?referralCode=3Ri9K9](https://railway.com?referralCode=3Ri9K9)
 
@@ -225,11 +225,11 @@ bun test --coverage
 
 ### 🌐 **Cloud Platforms**
 
-| Platform    | Deploy Time | Features                         | Link                                                                                                                                                                          |
-| ----------- | ----------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Railway** | 60 seconds  | Auto-scaling, persistent storage | [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/AvObXv?referralCode=3Ri9K9&utm_medium=integration&utm_source=template&utm_campaign=generic) |
-| **Docker**  | 2 minutes   | Portable, self-hosted            | [Guide](docs/deployment/production.md)                                                                                                                                        |
-| **Systemd** | 5 minutes   | Linux native, full control       | [Guide](docs/deployment/production.md)                                                                                                                                        |
+| Platform    | Deploy Time | Features                         | Link                                                                                        |
+| ----------- | ----------- | -------------------------------- | ------------------------------------------------------------------------------------------- |
+| **Railway** | 60 seconds  | Auto-scaling, persistent storage | [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/aircache) |
+| **Docker**  | 2 minutes   | Portable, self-hosted            | [Guide](docs/deployment/production.md)                                                      |
+| **Systemd** | 5 minutes   | Linux native, full control       | [Guide](docs/deployment/production.md)                                                      |
 
 ### 🔧 **Production Checklist**
 
