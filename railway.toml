@@ -1,32 +1,51 @@
 [build]
-# Railpack pour Bun + SQLite
+# Railpack automatically detects Bun and SQLite
 builder = "RAILPACK"
 
 [deploy]
+# Production-ready configuration
 startCommand = "bun start"
 restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 3
+restartPolicyMaxRetries = 10
+healthcheckPath = "/health"
+healthcheckTimeout = 10
 
-# Volumes pour persistance SQLite et attachments
+# Persistent storage for SQLite databases and attachments
 volumes = [
   { source = "/app/data", target = "/app/data" },
   { source = "/app/storage", target = "/app/storage" }
 ]
 
+# Port configuration
+[deploy.env]
+PORT = "3000"
+
+# Production environment with optimized settings
 [environments.production.variables]
 NODE_ENV = "production"
-SQLITE_V1_PATH = "/app/data/aircache-v1.sqlite"
-SQLITE_V2_PATH = "/app/data/aircache-v2.sqlite"
-SQLITE_METADATA_PATH = "/app/data/metadata.sqlite"
+# Performance optimization
+REFRESH_INTERVAL = "86400"  # 24 hours
+CACHE_TTL = "86400"        # 24 hours
+# Storage paths with persistent volumes
+SQLITE_PATH = "/app/data"
 STORAGE_PATH = "/app/storage/attachments"
-REFRESH_INTERVAL = "86400"
-CACHE_TTL = "86400"
+ENABLE_ATTACHMENT_DOWNLOAD = "true"
+# Security (set in Railway UI)
+# AIRTABLE_PERSONAL_TOKEN = "${AIRTABLE_PERSONAL_TOKEN}"
+# AIRTABLE_BASE_ID = "${AIRTABLE_BASE_ID}"
+# BEARER_TOKEN = "${BEARER_TOKEN}"
 
+# Staging environment for testing
 [environments.staging.variables]
 NODE_ENV = "staging"
-SQLITE_V1_PATH = "/app/data/aircache-staging-v1.sqlite"
-SQLITE_V2_PATH = "/app/data/aircache-staging-v2.sqlite"
-SQLITE_METADATA_PATH = "/app/data/metadata-staging.sqlite"
-STORAGE_PATH = "/app/storage/attachments-staging"
-REFRESH_INTERVAL = "43200"
-CACHE_TTL = "43200"
+# Faster refresh for testing
+REFRESH_INTERVAL = "3600"   # 1 hour
+CACHE_TTL = "3600"         # 1 hour
+# Isolated storage paths
+SQLITE_PATH = "/app/data/staging"
+STORAGE_PATH = "/app/storage/staging"
+ENABLE_ATTACHMENT_DOWNLOAD = "true"
+# Security (set in Railway UI)
+# AIRTABLE_PERSONAL_TOKEN = "${AIRTABLE_PERSONAL_TOKEN}"
+# AIRTABLE_BASE_ID = "${AIRTABLE_BASE_ID}"
+# BEARER_TOKEN = "${BEARER_TOKEN}"

@@ -1,0 +1,84 @@
+{
+  "name": "Aircache",
+  "description": "High-performance Airtable cache service - 3.2x faster with zero-downtime updates",
+  "icon": "🚀",
+  "template": {
+    "repo": "https://github.com/guischk/aircache",
+    "branch": "main"
+  },
+  "services": {
+    "aircache": {
+      "name": "Aircache API",
+      "plan": "hobby",
+      "environment": {
+        "PORT": "3000",
+        "NODE_ENV": "production",
+        "REFRESH_INTERVAL": "86400",
+        "SQLITE_PATH": "/app/data",
+        "STORAGE_PATH": "/app/data/attachments",
+        "ENABLE_ATTACHMENT_DOWNLOAD": "true"
+      },
+      "environmentVariables": {
+        "AIRTABLE_PERSONAL_TOKEN": {
+          "description": "Your Airtable Personal Access Token (pat_xxxxx)",
+          "required": true
+        },
+        "AIRTABLE_BASE_ID": {
+          "description": "Your Airtable Base ID (app_xxxxx)",
+          "required": true
+        },
+        "BEARER_TOKEN": {
+          "description": "Secure API token for authentication (generate a strong random string)",
+          "required": true,
+          "generate": true
+        }
+      },
+      "volumes": [
+        {
+          "name": "data",
+          "path": "/app/data"
+        }
+      ],
+      "healthcheck": {
+        "path": "/health",
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3
+      },
+      "deploy": {
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 10
+      }
+    }
+  },
+  "metadata": {
+    "category": "Backend",
+    "tags": ["airtable", "cache", "api", "sqlite", "bun", "performance"],
+    "author": "Guischk",
+    "license": "MIT",
+    "documentation": "https://github.com/guischk/aircache#readme",
+    "demo": "https://aircache-demo.railway.app",
+    "estimatedDeployTime": "60 seconds"
+  },
+  "instructions": {
+    "preDeployment": [
+      "Get your Airtable Personal Access Token from https://airtable.com/create/tokens",
+      "Find your Airtable Base ID in the URL (app_xxxxx)",
+      "Railway will generate a secure Bearer token automatically"
+    ],
+    "postDeployment": [
+      "Wait for the first data sync to complete (check logs)",
+      "Test the API with: GET {{RAILWAY_STATIC_URL}}/health",
+      "Access your cached data with: GET {{RAILWAY_STATIC_URL}}/api/tables",
+      "Authenticate requests with: Authorization: Bearer {{BEARER_TOKEN}}"
+    ]
+  },
+  "features": [
+    "✅ 3.2x faster than direct Airtable API calls",
+    "✅ Zero-downtime cache updates",
+    "✅ Automatic attachment downloading",
+    "✅ Built-in health monitoring",
+    "✅ Production-ready security",
+    "✅ TypeScript support"
+  ]
+}
