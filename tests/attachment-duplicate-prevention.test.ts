@@ -32,39 +32,45 @@ describe("Attachment Duplicate Prevention", () => {
 		await Bun.$`rm -rf ${testStoragePath}`;
 	});
 
-	test("should generate deterministic filenames based on URL", () => {
+	test("should generate deterministic attachment paths based on URL", () => {
 		const backend = new SQLiteBackend();
 
 		// Use reflection to access private method for testing
-		const generateSafeFilename = (backend as any).generateSafeFilename.bind(
+		const generateAttachmentPath = (backend as any).generateAttachmentPath.bind(
 			backend,
 		);
 
+		const tableName = "Table1";
+		const recordId = "rec123";
+		const fieldName = "attachments";
 		const filename = "test-image.jpg";
 		const url = "https://example.com/image.jpg";
 
-		// Generate filename multiple times - should be identical
-		const filename1 = generateSafeFilename(filename, url);
-		const filename2 = generateSafeFilename(filename, url);
+		// Generate path multiple times - should be identical
+		const path1 = generateAttachmentPath(tableName, recordId, fieldName, filename, url);
+		const path2 = generateAttachmentPath(tableName, recordId, fieldName, filename, url);
 
-		expect(filename1).toBe(filename2);
-		expect(filename1).toMatch(/test-image_[a-f0-9]{8}\.jpg/);
+		expect(path1).toBe(path2);
+		expect(path1).toMatch(/Table1[\\/]rec123[\\/]attachments[\\/]test-image_[a-f0-9]{8}\.jpg/);
 	});
 
-	test("should generate different filenames for different URLs", () => {
+	test("should generate different paths for different URLs", () => {
 		const backend = new SQLiteBackend();
-		const generateSafeFilename = (backend as any).generateSafeFilename.bind(
+		const generateAttachmentPath = (backend as any).generateAttachmentPath.bind(
 			backend,
 		);
 
+		const tableName = "Table1";
+		const recordId = "rec123";
+		const fieldName = "attachments";
 		const filename = "test-image.jpg";
 		const url1 = "https://example.com/image1.jpg";
 		const url2 = "https://example.com/image2.jpg";
 
-		const filename1 = generateSafeFilename(filename, url1);
-		const filename2 = generateSafeFilename(filename, url2);
+		const path1 = generateAttachmentPath(tableName, recordId, fieldName, filename, url1);
+		const path2 = generateAttachmentPath(tableName, recordId, fieldName, filename, url2);
 
-		expect(filename1).not.toBe(filename2);
+		expect(path1).not.toBe(path2);
 	});
 
 	test("should create consistent hash for same string", () => {

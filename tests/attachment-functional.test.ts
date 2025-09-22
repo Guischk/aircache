@@ -51,15 +51,22 @@ describe("Attachment Re-download Prevention (Functional)", () => {
 			type: "image/jpeg",
 		};
 
-		// First, simulate an existing file with correct size
-		const generateSafeFilename = (backend as any).generateSafeFilename.bind(
+		// First, simulate an existing file with correct size in hierarchical structure
+		const generateAttachmentPath = (backend as any).generateAttachmentPath.bind(
 			backend,
 		);
-		const safeFilename = generateSafeFilename(
+		const relativePath = generateAttachmentPath(
+			"test-table",
+			"rec123",
+			"photos",
 			mockAttachmentData.filename,
 			mockAttachmentData.url,
 		);
-		const localPath = path.join(testStoragePath, safeFilename);
+		const localPath = path.join(testStoragePath, relativePath);
+
+		// Ensure directory exists
+		const dir = path.dirname(localPath);
+		await Bun.$`mkdir -p ${dir}`;
 
 		// Create a file with the expected size
 		const testData = new Uint8Array(1024);
@@ -122,15 +129,22 @@ describe("Attachment Re-download Prevention (Functional)", () => {
 			type: "application/pdf",
 		};
 
-		// Create a file with wrong size
-		const generateSafeFilename = (backend as any).generateSafeFilename.bind(
+		// Create a file with wrong size in hierarchical structure
+		const generateAttachmentPath = (backend as any).generateAttachmentPath.bind(
 			backend,
 		);
-		const safeFilename = generateSafeFilename(
+		const relativePath = generateAttachmentPath(
+			"test-table",
+			"rec456",
+			"documents",
 			mockAttachmentData.filename,
 			mockAttachmentData.url,
 		);
-		const localPath = path.join(testStoragePath, safeFilename);
+		const localPath = path.join(testStoragePath, relativePath);
+
+		// Ensure directory exists
+		const dir = path.dirname(localPath);
+		await Bun.$`mkdir -p ${dir}`;
 
 		const wrongSizeData = new Uint8Array(512); // Wrong size
 		wrongSizeData.fill(99);

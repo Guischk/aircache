@@ -203,12 +203,15 @@ export class SQLiteBackend {
 				await this.processAttachmentsWithPool(
 					pendingAttachments,
 					async (attachment) => {
-						// Generate safe filename based on original filename and URL
-						const safeFilename = this.generateSafeFilename(
+						// Generate hierarchical path: table/record/field/filename
+						const relativePath = this.generateAttachmentPath(
+							attachment.table_name,
+							attachment.record_id,
+							attachment.field_name,
 							attachment.filename || `attachment_${attachment.id}`,
 							attachment.original_url,
 						);
-						const localPath = path.join(storagePath, safeFilename);
+						const localPath = path.join(storagePath, relativePath);
 
 						// Check if file already exists and has the correct size
 						const existingFile = Bun.file(localPath);
@@ -236,9 +239,13 @@ export class SQLiteBackend {
 							}
 						}
 
+						// Ensure directory structure exists
+						const dir = path.dirname(localPath);
+						await Bun.$`mkdir -p ${dir}`;
+
 						// Download file
 						console.log(
-							`📎 Downloading: ${attachment.filename} (${attachment.size} bytes)`,
+							`📎 Downloading: ${attachment.filename} to ${relativePath} (${attachment.size} bytes)`,
 						);
 						const response = await fetch(attachment.original_url);
 
@@ -259,7 +266,7 @@ export class SQLiteBackend {
 							attachment.size,
 						);
 
-						console.log(`   ✅ ${safeFilename} downloaded successfully`);
+						console.log(`   ✅ ${relativePath} downloaded successfully`);
 					},
 					maxConcurrentDownloads,
 				);
@@ -279,18 +286,27 @@ export class SQLiteBackend {
 	}
 
 	/**
-	 * Generate a safe filename for local storage based on original filename and URL
+	 * Generate a hierarchical path for local storage: table/record/field/filename
 	 */
-	private generateSafeFilename(filename: string, url: string): string {
-		// Remove unsafe characters and limit length
-		const safe = filename.replace(/[^a-zA-Z0-9._-]/g, "_").substring(0, 100);
+	private generateAttachmentPath(
+		tableName: string,
+		recordId: string,
+		fieldName: string,
+		filename: string,
+		url: string
+	): string {
+		// Remove unsafe characters and limit length for filename
+		const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_").substring(0, 100);
 
 		// Create a hash from the URL to ensure uniqueness while being deterministic
 		const urlHash = this.hashString(url).substring(0, 8);
-		const ext = path.extname(safe);
-		const name = path.basename(safe, ext);
+		const ext = path.extname(safeFilename);
+		const name = path.basename(safeFilename, ext);
 
-		return `${name}_${urlHash}${ext}`;
+		const finalFilename = `${name}_${urlHash}${ext}`;
+
+		// Create hierarchical path: table/record/field/filename
+		return path.join(tableName, recordId, fieldName, finalFilename);
 	}
 
 	/**

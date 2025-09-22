@@ -575,6 +575,25 @@ class SQLiteService {
 	}
 
 	/**
+	 * Retrieve all attachments for a table
+	 */
+	async getTableAttachments(
+		tableName: string,
+		useInactive = false,
+	): Promise<Attachment[]> {
+		const db = useInactive ? this.inactiveDb : this.activeDb;
+		if (!db) throw new Error("Database not connected");
+
+		const stmt = db.prepare(`
+      SELECT * FROM attachments
+      WHERE table_name = ?
+      ORDER BY record_id, field_name, original_url
+    `);
+
+		return stmt.all(tableName) as Attachment[];
+	}
+
+	/**
 	 * Retrieve all attachments for a record
 	 */
 	async getRecordAttachments(
@@ -592,6 +611,27 @@ class SQLiteService {
     `);
 
 		return stmt.all(tableName, recordId) as Attachment[];
+	}
+
+	/**
+	 * Retrieve all attachments for a specific field
+	 */
+	async getFieldAttachments(
+		tableName: string,
+		recordId: string,
+		fieldName: string,
+		useInactive = false,
+	): Promise<Attachment[]> {
+		const db = useInactive ? this.inactiveDb : this.activeDb;
+		if (!db) throw new Error("Database not connected");
+
+		const stmt = db.prepare(`
+      SELECT * FROM attachments
+      WHERE table_name = ? AND record_id = ? AND field_name = ?
+      ORDER BY original_url
+    `);
+
+		return stmt.all(tableName, recordId, fieldName) as Attachment[];
 	}
 
 	/**

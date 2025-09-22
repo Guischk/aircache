@@ -201,6 +201,16 @@ export async function getAttachment(id: string) {
 }
 
 /**
+ * Retrieves all attachments for a table
+ */
+export async function getTableAttachments(
+	tableName: string,
+	useInactive = false,
+) {
+	return await sqliteService.getTableAttachments(tableName, useInactive);
+}
+
+/**
  * Retrieves all attachments for a record
  */
 export async function getRecordAttachments(
@@ -211,6 +221,23 @@ export async function getRecordAttachments(
 	return await sqliteService.getRecordAttachments(
 		tableName,
 		recordId,
+		useInactive,
+	);
+}
+
+/**
+ * Retrieves all attachments for a specific field
+ */
+export async function getFieldAttachments(
+	tableName: string,
+	recordId: string,
+	fieldName: string,
+	useInactive = false,
+) {
+	return await sqliteService.getFieldAttachments(
+		tableName,
+		recordId,
+		fieldName,
 		useInactive,
 	);
 }
