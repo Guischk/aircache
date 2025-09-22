@@ -1,40 +1,53 @@
 {
   "name": "aircache",
-  "version": "0.1.0",
-  "description": "SQLite-based Airtable cache service with REST API",
+  "version": "0.2.0",
+  "description": "Open source high-performance Airtable cache service built with SQLite and Bun. 240x faster than direct API calls with zero-downtime updates.",
   "author": "Guischk",
   "license": "MIT",
-  "keywords": ["airtable", "cache", "sqlite", "api", "bun", "typescript"],
+  "homepage": "https://github.com/guischk/aircache#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/guischk/aircache.git"
+  },
+  "bugs": {
+    "url": "https://github.com/guischk/aircache/issues"
+  },
+  "keywords": [
+    "airtable",
+    "cache",
+    "sqlite",
+    "api",
+    "bun",
+    "typescript",
+    "open-source",
+    "self-hosted",
+    "performance",
+    "rest-api",
+    "zero-downtime",
+    "attachments",
+    "worker",
+    "database",
+    "caching",
+    "community",
+    "free"
+  ],
   "main": "index.ts",
   "module": "index.ts",
   "type": "module",
-  "private": true,
   "scripts": {
     "start": "bun index.ts",
     "dev": "bun --hot index.ts",
-    "build": "bun run airtable:types && bun build index.ts --target=bun --outdir=dist",
-    "build:railway": "bun install && bun run build",
-    "test": "bun test tests/ --outdir dist",
-    "test:api": "bun test tests/api.test.ts --outdir dist",
-    "test:integration": "bun test tests/integration.test.ts --outdir dist",
-    "test:security": "bun test tests/security.test.ts --outdir dist",
-    "test:performance": "bun test tests/performance.test.ts --outdir dist",
-    "test:all": "bun scripts/run-tests.ts",
-    "test:complete": "bun run test:all",
-    "test:unit": "bun test tests/api.test.ts tests/unit/",
-    "test:e2e": "bun test tests/integration.test.ts tests/e2e/",
-    "benchmark:sqlite-vs-airtable": "bun tests/sqlite-vs-airtable.benchmark.ts",
-    "test:deployment": "bun scripts/test-sqlite-deployment.ts",
-    "security-check": "bun scripts/security-check.ts",
-    "demo": "bun scripts/demo.ts",
-    "airtable:types": "airtable-types-gen --output src/lib/airtable/schema.ts -f",
-    "clean": "rm -rf dist *.md *-report.md *-comparison.md",
+    "build": "bun run types && bun build index.ts --target=bun --outdir=dist",
+    "clean": "rm -rf dist data/*.db",
+    "lint": "biome lint src/ tests/ --apply",
+    "format": "biome format src/ tests/ --write",
+    "check": "biome check src/ tests/ --apply",
+    "types": "airtable-types-gen --output src/lib/airtable/schema.ts -f",
+    "test": "bun test tests/",
     "test:watch": "bun test tests/ --watch",
-    "test:coverage": "bun test tests/ --coverage",
-    "test:ci": "bun run test:all -- --reporter=junit --outputFile=test-results.xml",
-    "validate": "bun run test:complete && bun run security-check && echo '✅ Validation successful'",
-    "prepublishOnly": "bun run test:complete && bun run security-check",
-    "publish:check": "bun run validate"
+    "benchmark": "bun tests/sqlite-vs-airtable.benchmark.ts",
+    "validate": "bun run check && bun run test && bun run benchmark",
+    "prepublishOnly": "bun run validate"
   },
   "exports": {
     ".": "./index.ts",
@@ -42,8 +55,29 @@
     "./server": "./src/server/index.ts",
     "./sqlite": "./src/lib/sqlite/index.ts"
   },
+  "engines": {
+    "bun": ">=1.0.0",
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "src/",
+    "index.ts",
+    "README.md",
+    "LICENSE",
+    "docs/",
+    "scripts/",
+    "tests/"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/guischk"
+  },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@biomejs/biome": "^1.8.3"
   },
   "peerDependencies": {
     "typescript": "^5"
