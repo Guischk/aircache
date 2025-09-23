@@ -71,10 +71,6 @@
   "publishConfig": {
     "access": "public"
   },
-  "funding": {
-    "type": "github",
-    "url": "https://github.com/sponsors/guischk"
-  },
   "devDependencies": {
     "@types/bun": "latest",
     "@biomejs/biome": "^1.8.3"
@@ -84,6 +80,7 @@
   },
   "dependencies": {
     "airtable": "^0.12.2",
-    "airtable-types-gen": "^0.4.0"
+    "airtable-types-gen": "^0.4.0",
+    "hono": "^4.9.8"
   }
 }

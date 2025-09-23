@@ -11,6 +11,7 @@ import {
 	markAttachmentDownloaded,
 } from "../../lib/sqlite/helpers";
 import { sqliteService } from "../../lib/sqlite/index";
+import { normalizeKey } from "../../lib/utils/index";
 
 export interface RefreshStats {
 	tables: number;
@@ -96,16 +97,22 @@ export class SQLiteBackend {
 
 					for (const chunk of recordChunks) {
 						try {
-							await sqliteService.setRecordsBatch(tableName, chunk, true);
+							const normalizedTableName = normalizeKey(tableName);
+							await sqliteService.setRecordsBatch(
+								normalizedTableName,
+								chunk,
+								true,
+							);
 							totalRecords += chunk.length;
 							console.log(`   📦 Processed batch of ${chunk.length} records`);
 						} catch (error) {
 							console.error(`   ❌ Error with batch:`, error);
 							// Fallback to individual processing for this chunk
+							const normalizedTableName = normalizeKey(tableName);
 							for (const record of chunk) {
 								try {
 									await sqliteService.setRecord(
-										tableName,
+										normalizedTableName,
 										record.id,
 										record.fields,
 										true,
@@ -293,10 +300,12 @@ export class SQLiteBackend {
 		recordId: string,
 		fieldName: string,
 		filename: string,
-		url: string
+		url: string,
 	): string {
 		// Remove unsafe characters and limit length for filename
-		const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_").substring(0, 100);
+		const safeFilename = filename
+			.replace(/[^a-zA-Z0-9._-]/g, "_")
+			.substring(0, 100);
 
 		// Create a hash from the URL to ensure uniqueness while being deterministic
 		const urlHash = this.hashString(url).substring(0, 8);

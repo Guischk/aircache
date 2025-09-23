@@ -8,7 +8,7 @@ import { describe, expect, test } from "bun:test";
 
 // Mock des variables d'environnement pour les tests
 const mockEnv = {
-	BEARER_TOKEN: "test-token-123",
+	BEARER_TOKEN: "test-token",
 };
 
 // Fonction d'authentification à tester (copie depuis auth.ts)
@@ -19,13 +19,13 @@ function isAuthenticated(request: Request): boolean {
 		return false;
 	}
 
-	const match = authHeader.match(/^Bearer\s+(.+)$/);
+	const match = authHeader.match(/^Bearer (.+)$/);
 	if (!match) {
 		return false;
 	}
 
 	const token = match[1];
-	const expectedToken = process.env.BEARER_TOKEN || mockEnv.BEARER_TOKEN;
+	const expectedToken = mockEnv.BEARER_TOKEN;
 
 	return token === expectedToken;
 }
@@ -55,7 +55,7 @@ describe("Authentication Unit Tests", () => {
 	test("should accept valid bearer token", () => {
 		const request = new Request("http://localhost", {
 			headers: {
-				Authorization: "Bearer test-token-123",
+				Authorization: "Bearer test-token",
 			},
 		});
 
@@ -126,7 +126,7 @@ describe("Authentication Unit Tests", () => {
 	test("should return null for successful auth", () => {
 		const request = new Request("http://localhost", {
 			headers: {
-				Authorization: "Bearer test-token-123",
+				Authorization: "Bearer test-token",
 			},
 		});
 
@@ -137,7 +137,7 @@ describe("Authentication Unit Tests", () => {
 	test("should handle case sensitive tokens", () => {
 		const request = new Request("http://localhost", {
 			headers: {
-				Authorization: "Bearer TEST-TOKEN-123",
+				Authorization: "Bearer TEST-TOKEN",
 			},
 		});
 
@@ -148,7 +148,7 @@ describe("Authentication Unit Tests", () => {
 	test("should handle multiple spaces in auth header", () => {
 		const request = new Request("http://localhost", {
 			headers: {
-				Authorization: "Bearer  test-token-123",
+				Authorization: "Bearer  test-token",
 			},
 		});
 

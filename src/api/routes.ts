@@ -182,14 +182,13 @@ export async function handleTableRecords(
 	logAuthAttempt(request, true);
 
 	try {
-		// Check that the table exists (accept original or normalized names)
-		const originalTableNames = AIRTABLE_TABLE_NAMES.map((name) =>
+		// Check that the table exists (only accept normalized names)
+		const normalizedTableNames = AIRTABLE_TABLE_NAMES.map((name) =>
 			normalizeKey(name),
 		);
-		if (
-			!originalTableNames.includes(tableName as any) &&
-			!AIRTABLE_TABLE_NAMES.includes(tableName as any)
-		) {
+		const normalizedTableName = normalizeKey(tableName);
+
+		if (!normalizedTableNames.includes(normalizedTableName)) {
 			return createErrorResponse(
 				"Table not found",
 				`Table '${tableName}' does not exist`,
@@ -198,7 +197,6 @@ export async function handleTableRecords(
 		}
 
 		const version = await getActiveVersion();
-		const normalizedTableName = normalizeKey(tableName);
 
 		// Pagination
 		const url = new URL(request.url);
@@ -227,8 +225,7 @@ export async function handleTableRecords(
 					.filter(Boolean)
 			: null;
 
-		// Get records with pagination (try active version first, then inactive)
-		// Try with normalized name first
+		// Get records with pagination (use only normalized table name)
 		let allRecords = await getTableRecords(
 			normalizedTableName,
 			false,
@@ -237,31 +234,15 @@ export async function handleTableRecords(
 		);
 		let totalCount = await countTableRecords(normalizedTableName, false);
 
-		// If no records, try with original name
+		// If no records in active version, try inactive version
 		if (totalCount === 0) {
-			const originalTableName = AIRTABLE_TABLE_NAMES.find(
-				(name) => normalizeKey(name) === normalizedTableName,
+			allRecords = await getTableRecords(
+				normalizedTableName,
+				true,
+				limit,
+				offset,
 			);
-			if (originalTableName) {
-				allRecords = await getTableRecords(
-					originalTableName,
-					false,
-					limit,
-					offset,
-				);
-				totalCount = await countTableRecords(originalTableName, false);
-
-				// If still no records, try inactive version with original name
-				if (totalCount === 0) {
-					allRecords = await getTableRecords(
-						originalTableName,
-						true,
-						limit,
-						offset,
-					);
-					totalCount = await countTableRecords(originalTableName, true);
-				}
-			}
+			totalCount = await countTableRecords(normalizedTableName, true);
 		}
 
 		// Field filtering if requested
@@ -322,14 +303,13 @@ export async function handleSingleRecord(
 	logAuthAttempt(request, true);
 
 	try {
-		// Check that the table exists (accept original or normalized names)
-		const originalTableNames = AIRTABLE_TABLE_NAMES.map((name) =>
+		// Check that the table exists (only accept normalized names)
+		const normalizedTableNames = AIRTABLE_TABLE_NAMES.map((name) =>
 			normalizeKey(name),
 		);
-		if (
-			!originalTableNames.includes(tableName as any) &&
-			!AIRTABLE_TABLE_NAMES.includes(tableName as any)
-		) {
+		const normalizedTableName = normalizeKey(tableName);
+
+		if (!normalizedTableNames.includes(normalizedTableName)) {
 			return createErrorResponse(
 				"Table not found",
 				`Table '${tableName}' does not exist`,
@@ -338,7 +318,6 @@ export async function handleSingleRecord(
 		}
 
 		const version = await getActiveVersion();
-		const normalizedTableName = normalizeKey(tableName);
 
 		// Optional field filtering
 		const url = new URL(request.url);
@@ -350,23 +329,12 @@ export async function handleSingleRecord(
 					.filter(Boolean)
 			: null;
 
-		// Try active version first, then inactive
-		// Try with normalized name first
+		// Try active version first, then inactive (use only normalized table name)
 		let recordData = await getRecord(normalizedTableName, recordId, false);
 
-		// If no record, try with original name
+		// If no record in active version, try inactive version
 		if (!recordData) {
-			const originalTableName = AIRTABLE_TABLE_NAMES.find(
-				(name) => normalizeKey(name) === normalizedTableName,
-			);
-			if (originalTableName) {
-				recordData = await getRecord(originalTableName, recordId, false);
-
-				// If still no record, try inactive version with original name
-				if (!recordData) {
-					recordData = await getRecord(originalTableName, recordId, true);
-				}
-			}
+			recordData = await getRecord(normalizedTableName, recordId, true);
 		}
 
 		if (!recordData) {
