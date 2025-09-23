@@ -5,9 +5,9 @@
 import path from "node:path";
 import {
 	getAttachment,
-	getTableAttachments,
-	getRecordAttachments,
 	getFieldAttachments,
+	getRecordAttachments,
+	getTableAttachments,
 } from "../../lib/sqlite/helpers";
 
 /**
@@ -36,7 +36,10 @@ export async function handleTableAttachments(
 			},
 		);
 	} catch (error) {
-		console.error(`❌ Error listing attachments for table '${tableName}':`, error);
+		console.error(
+			`❌ Error listing attachments for table '${tableName}':`,
+			error,
+		);
 		return new Response(
 			JSON.stringify({
 				success: false,
@@ -83,7 +86,10 @@ export async function handleRecordAttachments(
 			},
 		);
 	} catch (error) {
-		console.error(`❌ Error listing attachments for record '${tableName}/${recordId}':`, error);
+		console.error(
+			`❌ Error listing attachments for record '${tableName}/${recordId}':`,
+			error,
+		);
 		return new Response(
 			JSON.stringify({
 				success: false,
@@ -112,7 +118,11 @@ export async function handleFieldAttachments(
 	fieldName: string,
 ): Promise<Response> {
 	try {
-		const attachments = await getFieldAttachments(tableName, recordId, fieldName);
+		const attachments = await getFieldAttachments(
+			tableName,
+			recordId,
+			fieldName,
+		);
 
 		return new Response(
 			JSON.stringify({
@@ -132,7 +142,10 @@ export async function handleFieldAttachments(
 			},
 		);
 	} catch (error) {
-		console.error(`❌ Error listing attachments for field '${tableName}/${recordId}/${fieldName}':`, error);
+		console.error(
+			`❌ Error listing attachments for field '${tableName}/${recordId}/${fieldName}':`,
+			error,
+		);
 		return new Response(
 			JSON.stringify({
 				success: false,
@@ -163,9 +176,13 @@ export async function handleSpecificAttachment(
 ): Promise<Response> {
 	try {
 		// Get all attachments for the field and find the one matching the filename
-		const attachments = await getFieldAttachments(tableName, recordId, fieldName);
+		const attachments = await getFieldAttachments(
+			tableName,
+			recordId,
+			fieldName,
+		);
 		const attachment = attachments.find((att: any) => {
-			const localFilename = path.basename(att.local_path || '');
+			const localFilename = path.basename(att.local_path || "");
 			return localFilename === filename;
 		});
 
@@ -189,7 +206,10 @@ export async function handleSpecificAttachment(
 
 		return serveAttachmentFile(attachment);
 	} catch (error) {
-		console.error(`❌ Error serving specific attachment '${tableName}/${recordId}/${fieldName}/${filename}':`, error);
+		console.error(
+			`❌ Error serving specific attachment '${tableName}/${recordId}/${fieldName}/${filename}':`,
+			error,
+		);
 		return new Response(
 			JSON.stringify({
 				success: false,

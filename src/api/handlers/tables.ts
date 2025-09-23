@@ -23,7 +23,7 @@ export async function handleTables(): Promise<Response> {
 		const { sqliteService } = await import("../../lib/sqlite/index");
 		const tables = await sqliteService.getTables(false);
 
-		// ✅ Successful response with table list
+		// ✅ Successful response with table list (tables are already normalized in storage)
 		return new Response(
 			JSON.stringify({
 				tables,

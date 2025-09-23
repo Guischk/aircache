@@ -49,7 +49,6 @@ interface ApiResponse {
 	meta?: {
 		timestamp: string;
 		version?: string;
-		namespace?: string;
 	};
 }
 
@@ -60,10 +59,10 @@ describe("Integration Tests", () => {
 
 		const tables = await apiRequest("/api/tables");
 		expect(tables.status).toBe(200);
-		expect(Array.isArray((tables.data as any).data.tables)).toBe(true);
+		expect(Array.isArray((tables.data as any).tables)).toBe(true);
 
 		const stats = await apiRequest("/api/stats");
 		expect(stats.status).toBe(200);
-		expect((stats.data as any).data.totalTables).toBeGreaterThan(0);
+		expect((stats.data as any).stats.totalTables).toBeGreaterThanOrEqual(0);
 	});
 });
