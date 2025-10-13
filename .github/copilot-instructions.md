@@ -1,0 +1,26 @@
+# AI Playbook
+- **Runtime**: Use Bun everywhere (`bun index.ts`, `bun --hot index.ts`, `bun test`); avoid Node/ts-node invocations.
+- **Tooling**: Format and lint with Biome (`bun run format|lint|check`); TypeScript types regenerate via `bun run types` (uses `airtable-types-gen`).
+- **Entrypoint**: `index.ts` boots `startServer()` from `src/server/index.ts`, which spins up a Web Worker (`src/worker/index.ts`) before serving HTTP.
+- **API Stack**: `src/api/app.ts` builds a Hono app; new routes should follow the pattern of returning a standard `Response` from `src/api/handlers/*` and converting it with `convertResponseToHono`.
+- **Auth**: Bearer auth is enforced for every `/api/*` route when `BEARER_TOKEN` is set; keep `/health` unauthenticated for probes.
+- **Table Routing**: Normalize Airtable table names with `normalizeKey` (see `src/api/routes/tables.ts`) before hitting SQLite to match cached keys.
+- **Responses**: Use `convertFileResponseToHono` when returning Bun files so attachment downloads preserve original headers.
+- **SQLite Service**: `src/lib/sqlite/index.ts` exposes singleton `sqliteService` with dual-database (v1/v2) swapping—always import and reuse it instead of creating fresh `SQLiteService` instances.
+- **Dynamic Imports**: Handlers lazily import `sqliteService` to keep startup fast; follow that pattern for new handler modules.
+- **Locks & Transactions**: Use `withLock` and `sqliteService.transaction(On)` helpers from `src/lib/sqlite/helpers.ts` whenever coordinating refresh or bulk writes.
+- **Refresh Flow**: Worker refresh calls `SQLiteBackend.refreshData()` → `setRecordsBatch()` into the inactive DB → `flipActiveVersion()` → downloads pending attachments; respect this order when extending the sync pipeline.
+- **Batching**: Record writes should use the 50-record batching implemented in `SQLiteBackend`—keep chunk size consistent unless there is a strong reason to change it.
+- **Attachments**: Local files live under `config.storagePath` (`data/attachments` default) with deterministic names (`generateAttachmentPath`); reuse that helper to avoid duplicate downloads.
+- **Attachment API**: `src/api/routes/attachments.ts` supports hierarchical routes (`/table/record/field/filename`) plus legacy ID lookups—ensure new endpoints keep both JSON and file response behavior.
+- **Environment**: Required vars (`AIRTABLE_PERSONAL_TOKEN`, `AIRTABLE_BASE_ID`, `BEARER_TOKEN`) are validated in `src/config.ts`; optional knobs include `PORT`, `REFRESH_INTERVAL`, `STORAGE_PATH`, `ENABLE_ATTACHMENT_DOWNLOAD`.
+- **Docs**: `docs/architecture/overview.md` and `docs/development/*` capture rationale; reference them when unsure about dual-DB or sync guarantees.
+- **Tests**: Run `bun test` (see `package.json`); integration suites spawn the full server on port 3001 and expect real Airtable creds plus seeded data, so set env vars or skip selectively.
+- **Benchmarks**: Performance checks live in `tests/sqlite-vs-airtable.benchmark.ts` and run via `bun run benchmark`; they hit Airtable and SQLite, so avoid in CI without credentials.
+- **Schema Files**: `src/lib/airtable/schema.ts` is generated—do not edit manually; update via `bun run types` after Airtable schema changes.
+- **Utilities**: Use `normalizeKey`, `recordKey`, and other helpers in `src/lib/utils`/`src/lib/sqlite/helpers` rather than re-implementing string logic.
+- **Graceful Shutdown**: If you add long-lived resources, hook into `setupGracefulShutdown` in `src/server/index.ts` to close them when SIGINT/SIGTERM arrive.
+- **Worker Messaging**: Respect `WorkerMessage`/`WorkerResponse` contracts in `src/worker/index.ts`; extend via new message types rather than ad-hoc postMessage payloads.
+- **Data Directory**: SQLite files live in `data/aircache-v1.sqlite` and `data/aircache-v2.sqlite`; keep migrations idempotent and compatible with both files when patching schemas.
+- **CLI Scripts**: Prefer package scripts (`bun run start|dev|lint|test`) over bespoke shell commands; existing `run-*.sh` scripts may be outdated.
+- **Logging**: Follow existing emoji-prefixed logs for observability; server expects refresh logs to surface from worker to console.

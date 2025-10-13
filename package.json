@@ -73,14 +73,14 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@biomejs/biome": "^1.8.3"
+    "@biomejs/biome": "^1.9.4"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5.9.2"
   },
   "dependencies": {
     "airtable": "^0.12.2",
     "airtable-types-gen": "^0.4.0",
-    "hono": "^4.9.8"
+    "hono": "^4.9.12"
   }
 }
