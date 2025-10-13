@@ -39,9 +39,10 @@
     "dev": "bun --hot index.ts",
     "build": "bun run types && bun build index.ts --target=bun --outdir=dist",
     "clean": "rm -rf dist data/*.db",
-    "lint": "biome lint src/ tests/ --apply",
-    "format": "biome format src/ tests/ --write",
-    "check": "biome check src/ tests/ --apply",
+    "lint": "eslint src/ tests/",
+    "lint:fix": "eslint src/ tests/ --fix",
+    "format": "eslint src/ tests/ --fix",
+    "check": "eslint src/ tests/",
     "types": "airtable-types-gen --output src/lib/airtable/schema.ts -f",
     "test": "bun test tests/",
     "test:watch": "bun test tests/ --watch",
@@ -72,8 +73,12 @@
     "access": "public"
   },
   "devDependencies": {
+    "@eslint/js": "^9.37.0",
+    "@stylistic/eslint-plugin": "^5.4.0",
     "@types/bun": "latest",
-    "@biomejs/biome": "^1.9.4"
+    "eslint": "^9.37.0",
+    "eslint-plugin-unicorn": "^61.0.2",
+    "typescript-eslint": "^8.46.1"
   },
   "peerDependencies": {
     "typescript": "^5.9.2"
