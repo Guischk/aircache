@@ -95,7 +95,7 @@ export class AirtableWebhookClient {
 			specification: {
 				options: {
 					filters: {
-						dataTypes: ["tableData"],
+						dataTypes: ["tableData", "tableFields", "tableMetadata"],
 					},
 					includes: {
 						includeCellValuesInFieldIds: "all",
