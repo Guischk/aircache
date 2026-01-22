@@ -40,6 +40,20 @@ async function startSQLiteServer(config: ServerConfig): Promise<void> {
 	await sqliteService.connect();
 	console.log("✅ SQLite databases initialized");
 
+	// Sync table mappings on startup
+	console.log("🔄 Syncing table mappings...");
+	try {
+		const { syncMappingsToDatabase } = await import(
+			"../lib/airtable/mapping-generator"
+		);
+		await syncMappingsToDatabase();
+		console.log("✅ Table mappings synced");
+	} catch (error) {
+		console.warn("⚠️  Failed to sync table mappings:", error);
+		console.warn("   💡 Run 'bun run types' to generate mappings");
+		// Continue startup - mappings are needed for webhooks but not for full refresh
+	}
+
 	worker.onmessage = (e) => {
 		if (e.data?.type === "refresh:done") {
 			console.log("✅ Refresh completed:", e.data.stats);

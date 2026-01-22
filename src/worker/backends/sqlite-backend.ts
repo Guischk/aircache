@@ -59,15 +59,24 @@ export class SQLiteBackend {
 			// Itérer sur chaque table modifiée
 			for (const [tableId, changes] of Object.entries(changedTablesById)) {
 				try {
-					// 1. Résoudre le nom de la table depuis son ID
-					const tableName = await this.resolveTableNameFromId(tableId);
-					if (!tableName) {
-						console.warn(`⚠️ Unknown table ID: ${tableId}, skipping`);
+					// 1. Get table names for SQLite storage and observability
+					// Airtable API accepts tableId directly, but we need names for SQLite and logs
+					const normalizedTableName =
+						await sqliteService.getNormalizedTableNameById(tableId);
+					const originalTableName =
+						await sqliteService.getOriginalTableNameById(tableId);
+
+					if (!normalizedTableName || !originalTableName) {
+						console.warn(
+							`⚠️ Table ID ${tableId} not found in mappings, skipping`,
+						);
+						console.warn("   💡 Run 'bun run types' to regenerate mappings");
 						continue;
 					}
 
-					console.log(`🔄 [SQLite] Processing table: ${tableName}`);
-					const normalizedTableName = normalizeKey(tableName);
+					console.log(
+						`🔄 [SQLite] Processing table: ${originalTableName} (${tableId})`,
+					);
 
 					// 2. Collecter les IDs à fetch (créés + modifiés)
 					const recordIdsToFetch = [
@@ -75,13 +84,16 @@ export class SQLiteBackend {
 						...Object.keys(changes.changedRecordsById || {}),
 					];
 
-					// 3. Fetch records depuis Airtable (batch)
+					// 3. Fetch records depuis Airtable (batch) using tableId
 					if (recordIdsToFetch.length > 0) {
-						console.log(`   📥 Fetching ${recordIdsToFetch.length} records...`);
+						console.log(
+							`   📥 Fetching ${recordIdsToFetch.length} records from ${originalTableName}...`,
+						);
 
 						// Airtable API: select() avec filterByFormula
+						// Use tableId directly - Airtable accepts both IDs and names
 						const formula = `OR(${recordIdsToFetch.map((id) => `RECORD_ID()="${id}"`).join(",")})`;
-						const records = await base(tableName)
+						const records = await base(tableId)
 							.select({ filterByFormula: formula })
 							.all();
 
@@ -140,28 +152,6 @@ export class SQLiteBackend {
 		} catch (error) {
 			console.error("❌ [SQLite] Error during incremental refresh:", error);
 			throw error;
-		}
-	}
-
-	/**
-	 * Résout le nom de table depuis son ID Airtable (tblXXX)
-	 * TODO: Sera complété avec la Phase 2 (Mapping table)
-	 */
-	private async resolveTableNameFromId(
-		tableId: string,
-	): Promise<string | null> {
-		try {
-			// Pour l'instant, retourne null si pas trouvé
-			// L'implémentation complète viendra avec la Phase 2 (Mapping)
-			console.warn(`⚠️ Table ID resolution not yet implemented: ${tableId}`);
-			console.warn("   💡 Will be implemented in Phase 2 (Mapping table)");
-			console.warn(
-				"   📌 Using fallback: full refresh will be triggered instead",
-			);
-			return null;
-		} catch (error) {
-			console.error(`❌ Error resolving table ID ${tableId}:`, error);
-			return null;
 		}
 	}
 

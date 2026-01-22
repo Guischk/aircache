@@ -37,6 +37,15 @@ class SQLiteService {
 	private metadataPath: string;
 	private currentActive: ActiveVersion = "v1";
 
+	// Expose databases for mapping sync (read-only access to internals)
+	public get v1Db(): Database | null {
+		return this.currentActive === "v1" ? this.activeDb : this.inactiveDb;
+	}
+
+	public get v2Db(): Database | null {
+		return this.currentActive === "v2" ? this.activeDb : this.inactiveDb;
+	}
+
 	constructor(
 		v1Path: string = process.env.SQLITE_V1_PATH || "data/aircache-v1.sqlite",
 		v2Path: string = process.env.SQLITE_V2_PATH || "data/aircache-v2.sqlite",
@@ -198,6 +207,29 @@ class SQLiteService {
       CREATE INDEX IF NOT EXISTS idx_processed_webhooks_expires 
       ON processed_webhooks(expires_at)
     `);
+
+		// Table for metadata mappings (table ID to names)
+		db.run(`
+      CREATE TABLE IF NOT EXISTS metadata_mappings (
+        table_id TEXT PRIMARY KEY,
+        table_name_original TEXT NOT NULL,
+        table_name_normalized TEXT NOT NULL,
+        primary_field_id TEXT NOT NULL,
+        fields_mapping TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(table_name_original),
+        UNIQUE(table_name_normalized)
+      )
+    `);
+
+		// Indexes for mapping lookups
+		db.run(
+			`CREATE INDEX IF NOT EXISTS idx_table_name_original ON metadata_mappings(table_name_original)`,
+		);
+		db.run(
+			`CREATE INDEX IF NOT EXISTS idx_table_name_normalized ON metadata_mappings(table_name_normalized)`,
+		);
 
 		console.log("✅ Data schema initialized");
 	}
@@ -834,6 +866,201 @@ class SQLiteService {
 		}
 
 		return deleted;
+	}
+
+	// ========================================
+	// TABLE MAPPING METHODS
+	// ========================================
+
+	/**
+	 * Upsert table mapping into database
+	 */
+	async upsertTableMapping(
+		db: Database,
+		mapping: {
+			id: string;
+			originalName: string;
+			normalizedName: string;
+			primaryFieldId: string;
+			fields: Record<string, unknown>;
+		},
+	): Promise<void> {
+		const stmt = db.prepare(`
+      INSERT INTO metadata_mappings (
+        table_id, table_name_original, table_name_normalized,
+        primary_field_id, fields_mapping, updated_at
+      ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(table_id) DO UPDATE SET
+        table_name_original = excluded.table_name_original,
+        table_name_normalized = excluded.table_name_normalized,
+        primary_field_id = excluded.primary_field_id,
+        fields_mapping = excluded.fields_mapping,
+        updated_at = CURRENT_TIMESTAMP
+    `);
+
+		stmt.run(
+			mapping.id,
+			mapping.originalName,
+			mapping.normalizedName,
+			mapping.primaryFieldId,
+			JSON.stringify(mapping.fields),
+		);
+	}
+
+	/**
+	 * Get original table name by table ID (for Airtable API calls)
+	 */
+	getOriginalTableNameById(tableId: string): string | null {
+		if (!this.activeDb) return null;
+
+		const result = this.activeDb
+			.prepare(
+				`
+      SELECT table_name_original 
+      FROM metadata_mappings 
+      WHERE table_id = ?
+    `,
+			)
+			.get(tableId) as { table_name_original: string } | undefined;
+
+		return result?.table_name_original || null;
+	}
+
+	/**
+	 * Get normalized table name by table ID (for SQLite storage)
+	 */
+	getNormalizedTableNameById(tableId: string): string | null {
+		if (!this.activeDb) return null;
+
+		const result = this.activeDb
+			.prepare(
+				`
+      SELECT table_name_normalized 
+      FROM metadata_mappings 
+      WHERE table_id = ?
+    `,
+			)
+			.get(tableId) as { table_name_normalized: string } | undefined;
+
+		return result?.table_name_normalized || null;
+	}
+
+	/**
+	 * Get original table name by normalized name (for write-back to Airtable)
+	 */
+	getOriginalTableNameByNormalized(normalizedName: string): string | null {
+		if (!this.activeDb) return null;
+
+		const result = this.activeDb
+			.prepare(
+				`
+      SELECT table_name_original 
+      FROM metadata_mappings 
+      WHERE table_name_normalized = ?
+    `,
+			)
+			.get(normalizedName) as { table_name_original: string } | undefined;
+
+		return result?.table_name_original || null;
+	}
+
+	/**
+	 * Get table ID by normalized name
+	 */
+	getTableIdByNormalizedName(normalizedName: string): string | null {
+		if (!this.activeDb) return null;
+
+		const result = this.activeDb
+			.prepare(
+				`
+      SELECT table_id 
+      FROM metadata_mappings 
+      WHERE table_name_normalized = ?
+    `,
+			)
+			.get(normalizedName) as { table_id: string } | undefined;
+
+		return result?.table_id || null;
+	}
+
+	/**
+	 * Get all table mappings (for API endpoint)
+	 */
+	getAllMappings(): Array<{
+		id: string;
+		originalName: string;
+		normalizedName: string;
+		primaryFieldId: string;
+		fields: Record<string, unknown>;
+	}> {
+		if (!this.activeDb) return [];
+
+		const rows = this.activeDb
+			.prepare(
+				`
+      SELECT table_id, table_name_original, table_name_normalized,
+             primary_field_id, fields_mapping
+      FROM metadata_mappings
+      ORDER BY table_name_original
+    `,
+			)
+			.all() as Array<{
+			table_id: string;
+			table_name_original: string;
+			table_name_normalized: string;
+			primary_field_id: string;
+			fields_mapping: string;
+		}>;
+
+		return rows.map((row) => ({
+			id: row.table_id,
+			originalName: row.table_name_original,
+			normalizedName: row.table_name_normalized,
+			primaryFieldId: row.primary_field_id,
+			fields: JSON.parse(row.fields_mapping) as Record<string, unknown>,
+		}));
+	}
+
+	/**
+	 * Get field mapping for a specific field
+	 */
+	getFieldMapping(
+		tableIdOrName: string,
+		fieldId: string,
+	): { id: string; name: string; type: string } | null {
+		if (!this.activeDb) return null;
+
+		// Try to find by table ID first
+		let result = this.activeDb
+			.prepare(
+				`
+      SELECT fields_mapping 
+      FROM metadata_mappings 
+      WHERE table_id = ?
+    `,
+			)
+			.get(tableIdOrName) as { fields_mapping: string } | undefined;
+
+		// If not found, try by normalized name
+		if (!result) {
+			result = this.activeDb
+				.prepare(
+					`
+        SELECT fields_mapping 
+        FROM metadata_mappings 
+        WHERE table_name_normalized = ?
+      `,
+				)
+				.get(tableIdOrName) as { fields_mapping: string } | undefined;
+		}
+
+		if (!result) return null;
+
+		const fields = JSON.parse(result.fields_mapping) as Record<
+			string,
+			{ id: string; name: string; type: string }
+		>;
+		return fields[fieldId] || null;
 	}
 
 	/**

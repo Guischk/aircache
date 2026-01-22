@@ -28,6 +28,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 **/airtable/secrets.ts
 **/airtable-config.json
 **/*.airtable-schema.json
+**/airtable/mappings.json
 
 # Generated cache files
 cache/

@@ -1,86 +1,90 @@
 {
-  "name": "aircache",
-  "version": "0.2.0",
-  "description": "Open source high-performance Airtable cache service built with SQLite and Bun. 240x faster than direct API calls with zero-downtime updates.",
-  "author": "Guischk",
-  "license": "MIT",
-  "homepage": "https://github.com/guischk/aircache#readme",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/guischk/aircache.git"
-  },
-  "bugs": {
-    "url": "https://github.com/guischk/aircache/issues"
-  },
-  "keywords": [
-    "airtable",
-    "cache",
-    "sqlite",
-    "api",
-    "bun",
-    "typescript",
-    "open-source",
-    "self-hosted",
-    "performance",
-    "rest-api",
-    "zero-downtime",
-    "attachments",
-    "worker",
-    "database",
-    "caching",
-    "community",
-    "free"
-  ],
-  "main": "index.ts",
-  "module": "index.ts",
-  "type": "module",
-  "scripts": {
-    "start": "bun index.ts",
-    "dev": "bun --hot index.ts",
-    "build": "bun run types && bun build index.ts --target=bun --outdir=dist",
-    "clean": "rm -rf dist data/*.db",
-    "lint": "biome lint src/ tests/ --apply",
-    "format": "biome format src/ tests/ --write",
-    "check": "biome check src/ tests/ --apply",
-    "types": "airtable-types-gen --output src/lib/airtable/schema.ts -f",
-    "test": "bun test tests/",
-    "test:watch": "bun test tests/ --watch",
-    "benchmark": "bun tests/sqlite-vs-airtable.benchmark.ts",
-    "validate": "bun run check && bun run test && bun run benchmark",
-    "prepublishOnly": "bun run validate"
-  },
-  "exports": {
-    ".": "./index.ts",
-    "./api": "./src/api/index.ts",
-    "./server": "./src/server/index.ts",
-    "./sqlite": "./src/lib/sqlite/index.ts"
-  },
-  "engines": {
-    "bun": ">=1.0.0",
-    "node": ">=18.0.0"
-  },
-  "files": [
-    "src/",
-    "index.ts",
-    "README.md",
-    "LICENSE",
-    "docs/",
-    "scripts/",
-    "tests/"
-  ],
-  "publishConfig": {
-    "access": "public"
-  },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "@biomejs/biome": "^1.9.4"
-  },
-  "peerDependencies": {
-    "typescript": "^5.9.2"
-  },
-  "dependencies": {
-    "airtable": "^0.12.2",
-    "airtable-types-gen": "^0.4.0",
-    "hono": "^4.11.5"
-  }
+	"name": "aircache",
+	"version": "0.2.0",
+	"description": "Open source high-performance Airtable cache service built with SQLite and Bun. 240x faster than direct API calls with zero-downtime updates.",
+	"author": "Guischk",
+	"license": "MIT",
+	"homepage": "https://github.com/guischk/aircache#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/guischk/aircache.git"
+	},
+	"bugs": {
+		"url": "https://github.com/guischk/aircache/issues"
+	},
+	"keywords": [
+		"airtable",
+		"cache",
+		"sqlite",
+		"api",
+		"bun",
+		"typescript",
+		"open-source",
+		"self-hosted",
+		"performance",
+		"rest-api",
+		"zero-downtime",
+		"attachments",
+		"worker",
+		"database",
+		"caching",
+		"community",
+		"free"
+	],
+	"main": "index.ts",
+	"module": "index.ts",
+	"type": "module",
+	"scripts": {
+		"start": "bun index.ts",
+		"dev": "bun --hot index.ts",
+		"build": "bun run types && bun build index.ts --target=bun --outdir=dist",
+		"clean": "rm -rf dist data/*.db",
+		"lint": "biome lint src/ tests/ --apply",
+		"format": "biome format src/ tests/ --write",
+		"check": "biome check src/ tests/ --apply",
+		"types": "bun run types:schema && bun run types:mappings && bun run types:sync",
+		"types:schema": "airtable-types-gen --output src/lib/airtable/schema.ts -f",
+		"types:mappings": "bun src/lib/airtable/mapping-generator.ts generate",
+		"types:sync": "bun src/lib/airtable/mapping-generator.ts sync",
+		"test": "bun test tests/",
+		"test:watch": "bun test tests/ --watch",
+		"benchmark": "bun tests/sqlite-vs-airtable.benchmark.ts",
+		"validate": "bun run check && bun run test && bun run benchmark",
+		"prepublishOnly": "bun run validate"
+	},
+	"exports": {
+		".": "./index.ts",
+		"./api": "./src/api/index.ts",
+		"./server": "./src/server/index.ts",
+		"./sqlite": "./src/lib/sqlite/index.ts"
+	},
+	"engines": {
+		"bun": ">=1.0.0",
+		"node": ">=18.0.0"
+	},
+	"files": [
+		"src/",
+		"index.ts",
+		"README.md",
+		"LICENSE",
+		"docs/",
+		"scripts/",
+		"tests/"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"@biomejs/biome": "^1.9.4"
+	},
+	"peerDependencies": {
+		"typescript": "^5.9.2"
+	},
+	"dependencies": {
+		"airtable": "^0.12.2",
+		"airtable-types-gen": "^0.4.0",
+		"consola": "^3.4.2",
+		"hono": "^4.11.5"
+	}
 }
