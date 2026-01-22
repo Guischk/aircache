@@ -17,20 +17,49 @@ export async function validateWebhookSignature(
 	next: Next,
 ): Promise<Response | undefined> {
 	try {
+		// Log ALL headers for debugging
+		const allHeaders: Record<string, string> = {};
+		c.req.raw.headers.forEach((value, key) => {
+			allHeaders[key] = value;
+		});
+		logger.info("Webhook request received", {
+			headers: allHeaders,
+			method: c.req.method,
+			url: c.req.url,
+		});
+
 		// 1. Vérifier que le secret est configuré
 		if (!config.webhookSecret) {
 			logger.error("WEBHOOK_SECRET not configured");
 			return c.json({ error: "Webhook authentication not configured" }, 500);
 		}
 
+		logger.info("WEBHOOK_SECRET is configured", {
+			secretLength: config.webhookSecret.length,
+		});
+
 		// 2. Récupérer signature du header
 		const signature = c.req.header("X-Airtable-Content-MAC");
 		if (!signature || !signature.startsWith("sha256=")) {
+			logger.error("Missing or invalid signature header", {
+				signature,
+				hasSignature: !!signature,
+				startsWithSha256: signature?.startsWith("sha256="),
+			});
 			return c.json({ error: "Missing or invalid signature header" }, 401);
 		}
 
+		logger.info("Signature header found", {
+			signaturePreview: `${signature.substring(0, 20)}...`,
+		});
+
 		// 3. Lire le body (nécessaire pour HMAC)
 		const body = await c.req.text();
+
+		logger.info("Body received", {
+			bodyLength: body.length,
+			bodyPreview: body.substring(0, 100),
+		});
 
 		// 4. Calculer HMAC attendu avec Bun's crypto API
 		const encoder = new TextEncoder();
@@ -44,6 +73,12 @@ export async function validateWebhookSignature(
 
 		const computedSignature = `sha256=${hmac}`;
 
+		logger.info("Signature comparison", {
+			provided: signature,
+			computed: computedSignature,
+			match: signature === computedSignature,
+		});
+
 		// 5. Timing-safe comparison
 		const providedBuffer = new Uint8Array(
 			Buffer.from(signature.replace("sha256=", ""), "hex"),
@@ -51,7 +86,10 @@ export async function validateWebhookSignature(
 		const computedBuffer = new Uint8Array(Buffer.from(hmac, "hex"));
 
 		if (providedBuffer.length !== computedBuffer.length) {
-			logger.warn("Invalid webhook signature (length mismatch)");
+			logger.warn("Invalid webhook signature (length mismatch)", {
+				providedLength: providedBuffer.length,
+				computedLength: computedBuffer.length,
+			});
 			return c.json({ error: "Invalid signature" }, 401);
 		}
 
@@ -67,12 +105,18 @@ export async function validateWebhookSignature(
 		}
 
 		if (!isEqual) {
-			logger.warn("Invalid webhook signature");
+			logger.warn("Invalid webhook signature (mismatch)", {
+				provided: signature,
+				computed: computedSignature,
+			});
 			return c.json({ error: "Invalid signature" }, 401);
 		}
 
 		if (!crypto.timingSafeEqual(providedBuffer, computedBuffer)) {
-			logger.warn("Invalid webhook signature");
+			logger.warn("Invalid webhook signature (crypto.timingSafeEqual failed)", {
+				provided: signature,
+				computed: computedSignature,
+			});
 			return c.json({ error: "Invalid signature" }, 401);
 		}
 
@@ -83,8 +127,18 @@ export async function validateWebhookSignature(
 			const now = Date.now();
 			const diff = Math.abs(now - webhookTime);
 
+			logger.info("Timestamp validation", {
+				webhookTime: payload.timestamp,
+				now: new Date().toISOString(),
+				diffMs: diff,
+				maxAllowedMs: config.webhookTimestampWindow * 1000,
+			});
+
 			if (diff > config.webhookTimestampWindow * 1000) {
-				logger.warn("Webhook timestamp too old", { diffMs: diff });
+				logger.warn("Webhook timestamp too old", {
+					diffMs: diff,
+					maxAllowedMs: config.webhookTimestampWindow * 1000,
+				});
 				return c.json({ error: "Webhook timestamp expired" }, 401);
 			}
 		}
