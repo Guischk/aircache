@@ -11,8 +11,10 @@ import { logger } from "hono/logger";
 import { setupAttachmentRoutes } from "./routes/attachments";
 // Import route handlers
 import { setupHealthRoutes } from "./routes/health";
+import { setupMappingsRoutes } from "./routes/mappings";
 import { setupStatsRoutes } from "./routes/stats";
 import { setupTableRoutes } from "./routes/tables";
+import { setupTypesRoutes } from "./routes/types";
 import { setupWebhookRoutes } from "./routes/webhooks";
 
 // Types for context
@@ -62,6 +64,8 @@ export function createApp(worker?: Worker): Hono<AppContext> {
 	setupTableRoutes(app);
 	setupStatsRoutes(app);
 	setupAttachmentRoutes(app);
+	setupMappingsRoutes(app);
+	setupTypesRoutes(app);
 
 	// ❌ 404 handler with available routes
 	app.notFound((c) => {
@@ -81,6 +85,10 @@ export function createApp(worker?: Worker): Hono<AppContext> {
 					"GET /api/attachments/:table/:record",
 					"GET /api/attachments/:table/:record/:field",
 					"GET /api/attachments/:table/:record/:field/:filename",
+					"GET /api/mappings",
+					"GET /api/mappings/:identifier",
+					"GET /api/types",
+					"GET /api/types?format=json",
 				],
 			},
 			404,
