@@ -5,6 +5,9 @@
 
 import { config } from "../../config";
 import { AirtableWebhookClient } from "../airtable/webhook-client";
+import { loggers } from "../logger";
+
+const logger = loggers.webhook;
 
 /**
  * Setup webhooks automatically on server startup
@@ -17,30 +20,28 @@ import { AirtableWebhookClient } from "../airtable/webhook-client";
 export async function autoSetupWebhooks(): Promise<void> {
 	// Check if auto-setup is enabled
 	if (!config.webhookAutoSetup) {
-		console.log("ℹ️  Webhook auto-setup disabled (WEBHOOK_AUTO_SETUP=false)");
+		logger.info("Webhook auto-setup disabled (WEBHOOK_AUTO_SETUP=false)");
 		return;
 	}
 
 	// Check if public URL is configured
 	if (!config.webhookPublicUrl) {
-		console.log(
-			"⚠️  Webhook auto-setup skipped: WEBHOOK_PUBLIC_URL not configured",
+		logger.warn(
+			"Webhook auto-setup skipped: WEBHOOK_PUBLIC_URL not configured",
 		);
-		console.log(
-			"   Set WEBHOOK_PUBLIC_URL to enable automatic webhook creation",
-		);
+		logger.warn("Set WEBHOOK_PUBLIC_URL to enable automatic webhook creation");
 		return;
 	}
 
 	// Check if webhook secret is configured
 	if (!config.webhookSecret) {
-		console.log("⚠️  Webhook auto-setup skipped: WEBHOOK_SECRET not configured");
-		console.log("   Generate a secret with: openssl rand -hex 32");
+		logger.warn("Webhook auto-setup skipped: WEBHOOK_SECRET not configured");
+		logger.warn("Generate a secret with: openssl rand -hex 32");
 		return;
 	}
 
 	try {
-		console.log("🔗 Starting webhook auto-setup...");
+		logger.start("Starting webhook auto-setup...");
 
 		const client = new AirtableWebhookClient();
 		const webhookUrl = `${config.webhookPublicUrl}/webhooks/airtable/refresh`;
@@ -48,17 +49,20 @@ export async function autoSetupWebhooks(): Promise<void> {
 		const result = await client.setupWebhook(webhookUrl);
 
 		if (result.created) {
-			console.log("✅ Webhook auto-setup complete (new webhook created)");
+			logger.success("Webhook auto-setup complete (new webhook created)", {
+				webhookId: result.webhookId,
+				endpoint: webhookUrl,
+			});
 		} else {
-			console.log("✅ Webhook auto-setup complete (existing webhook found)");
+			logger.success("Webhook auto-setup complete (existing webhook found)", {
+				webhookId: result.webhookId,
+				endpoint: webhookUrl,
+			});
 		}
-
-		console.log(`   Webhook ID: ${result.webhookId}`);
-		console.log(`   Endpoint: ${webhookUrl}`);
 	} catch (error) {
-		console.error("❌ Webhook auto-setup failed:", error);
-		console.error(
-			"   You can manually create webhooks or disable auto-setup with WEBHOOK_AUTO_SETUP=false",
+		logger.error("Webhook auto-setup failed:", error);
+		logger.error(
+			"You can manually create webhooks or disable auto-setup with WEBHOOK_AUTO_SETUP=false",
 		);
 		// Don't throw - webhook setup failure shouldn't prevent server startup
 	}

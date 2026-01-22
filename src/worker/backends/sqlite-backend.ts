@@ -2,16 +2,19 @@
  * SQLite backend for the worker
  */
 
-import path from "path";
+import path from "node:path";
 import { config } from "../../config";
 import { base } from "../../lib/airtable/index";
 import { AIRTABLE_TABLE_NAMES } from "../../lib/airtable/schema";
+import { loggers } from "../../lib/logger";
 import {
 	getPendingAttachments,
 	markAttachmentDownloaded,
 } from "../../lib/sqlite/helpers";
 import { sqliteService } from "../../lib/sqlite/index";
 import { normalizeKey } from "../../lib/utils/index";
+
+const logger = loggers.sqlite;
 
 export interface RefreshStats {
 	tables: number;
@@ -51,7 +54,7 @@ export class SQLiteBackend {
 		let recordsUpdated = 0;
 		let recordsDeleted = 0;
 
-		console.log("🔄 [SQLite] Starting incremental refresh...");
+		logger.start("Starting incremental refresh");
 
 		try {
 			await sqliteService.connect();
@@ -67,16 +70,12 @@ export class SQLiteBackend {
 						await sqliteService.getOriginalTableNameById(tableId);
 
 					if (!normalizedTableName || !originalTableName) {
-						console.warn(
-							`⚠️ Table ID ${tableId} not found in mappings, skipping`,
-						);
-						console.warn("   💡 Run 'bun run types' to regenerate mappings");
+						logger.warn(`Table ID ${tableId} not found in mappings, skipping`);
+						logger.warn("Run 'bun run types' to regenerate mappings");
 						continue;
 					}
 
-					console.log(
-						`🔄 [SQLite] Processing table: ${originalTableName} (${tableId})`,
-					);
+					logger.info(`Processing table: ${originalTableName} (${tableId})`);
 
 					// 2. Collecter les IDs à fetch (créés + modifiés)
 					const recordIdsToFetch = [
@@ -86,8 +85,8 @@ export class SQLiteBackend {
 
 					// 3. Fetch records depuis Airtable (batch) using tableId
 					if (recordIdsToFetch.length > 0) {
-						console.log(
-							`   📥 Fetching ${recordIdsToFetch.length} records from ${originalTableName}...`,
+						logger.info(
+							`Fetching ${recordIdsToFetch.length} records from ${originalTableName}`,
 						);
 
 						// Airtable API: select() avec filterByFormula
@@ -110,13 +109,13 @@ export class SQLiteBackend {
 						recordsUpdated += Object.keys(
 							changes.changedRecordsById || {},
 						).length;
-						console.log(`   ✅ ${records.length} records updated in cache`);
+						logger.success(`${records.length} records updated in cache`);
 					}
 
 					// 4. Supprimer les records détruits
 					const destroyedIds = changes.destroyedRecordIds || [];
 					if (destroyedIds.length > 0) {
-						console.log(`   🗑️  Deleting ${destroyedIds.length} records...`);
+						logger.info(`Deleting ${destroyedIds.length} records`);
 
 						for (const recordId of destroyedIds) {
 							await sqliteService.deleteRecord(
@@ -127,19 +126,17 @@ export class SQLiteBackend {
 							recordsDeleted++;
 						}
 
-						console.log(`   ✅ ${destroyedIds.length} records deleted`);
+						logger.success(`${destroyedIds.length} records deleted`);
 					}
 				} catch (error) {
-					console.error(`❌ Error processing table ${tableId}:`, error);
+					logger.error(`Error processing table ${tableId}`, error);
 				}
 			}
 
 			const duration = performance.now() - startTime;
-			console.log(
-				`✅ [SQLite] Incremental refresh completed in ${(duration / 1000).toFixed(2)}s`,
-			);
-			console.log(
-				`   📊 Created: ${recordsCreated}, Updated: ${recordsUpdated}, Deleted: ${recordsDeleted}`,
+			logger.success(
+				`Incremental refresh completed in ${(duration / 1000).toFixed(2)}s`,
+				{ recordsCreated, recordsUpdated, recordsDeleted },
 			);
 
 			return {
@@ -150,7 +147,7 @@ export class SQLiteBackend {
 				duration,
 			};
 		} catch (error) {
-			console.error("❌ [SQLite] Error during incremental refresh:", error);
+			logger.error("Error during incremental refresh", error);
 			throw error;
 		}
 	}
@@ -181,7 +178,7 @@ export class SQLiteBackend {
 					processed++;
 				} else {
 					errors++;
-					console.error(`   ❌ Attachment processing failed:`, result.reason);
+					logger.error("Attachment processing failed", result.reason);
 				}
 			}
 		}
@@ -194,27 +191,27 @@ export class SQLiteBackend {
 		let totalRecords = 0;
 		let totalErrors = 0;
 
-		console.log("🔄 [SQLite] Starting Airtable data refresh...");
+		logger.start("Starting Airtable data refresh");
 
 		try {
 			// Ensure SQLite is connected
 			await sqliteService.connect();
 
 			// Clean up previous version
-			console.log("🧹 [SQLite] Cleaning previous version...");
+			logger.info("Cleaning previous version");
 			await sqliteService.clearInactiveDatabase();
 
 			// Refresh each table
 			const tableNames = Object.values(AIRTABLE_TABLE_NAMES);
-			console.log(`📋 [SQLite] Processing ${tableNames.length} tables...`);
+			logger.info(`Processing ${tableNames.length} tables`);
 
 			for (const tableName of tableNames) {
 				try {
-					console.log(`🔄 [SQLite] Syncing ${tableName}...`);
+					logger.start(`Syncing ${tableName}`);
 
 					// Retrieve all records from the table
 					const records = await base(tableName).select().all();
-					console.log(`   📊 ${records.length} records found`);
+					logger.info(`${records.length} records found`);
 
 					// Save records to SQLite in batches for better performance
 					const batchSize = 50;
@@ -229,9 +226,9 @@ export class SQLiteBackend {
 								true,
 							);
 							totalRecords += chunk.length;
-							console.log(`   📦 Processed batch of ${chunk.length} records`);
+							logger.debug(`Processed batch of ${chunk.length} records`);
 						} catch (error) {
-							console.error(`   ❌ Error with batch:`, error);
+							logger.error("Error with batch", error);
 							// Fallback to individual processing for this chunk
 							const normalizedTableName = normalizeKey(tableName);
 							for (const record of chunk) {
@@ -244,21 +241,18 @@ export class SQLiteBackend {
 									);
 									totalRecords++;
 								} catch (recordError) {
-									console.error(
-										`   ❌ Error with record ${record.id}:`,
-										recordError,
-									);
+									logger.error(`Error with record ${record.id}`, recordError);
 									totalErrors++;
 								}
 							}
 						}
 					}
 
-					console.log(
-						`   ✅ ${tableName}: ${records.length} records synchronized`,
+					logger.success(
+						`${tableName}: ${records.length} records synchronized`,
 					);
 				} catch (error) {
-					console.error(`❌ [SQLite] Error with table ${tableName}:`, error);
+					logger.error(`Error with table ${tableName}`, error);
 					totalErrors++;
 				}
 			}
@@ -267,17 +261,16 @@ export class SQLiteBackend {
 			await sqliteService.flipActiveVersion();
 
 			// Download pending attachments
-			console.log("📎 [SQLite] Downloading attachments...");
+			logger.info("Downloading attachments");
 			const attachmentStats = await this.downloadPendingAttachments();
 
 			const duration = performance.now() - startTime;
 
-			console.log(
-				`✅ [SQLite] Refresh completed in ${(duration / 1000).toFixed(2)}s`,
-			);
-			console.log(
-				`📊 [SQLite] ${totalRecords} records synchronized, ${attachmentStats.downloaded} attachments downloaded, ${totalErrors} errors`,
-			);
+			logger.success(`Refresh completed in ${(duration / 1000).toFixed(2)}s`, {
+				records: totalRecords,
+				attachments: attachmentStats.downloaded,
+				errors: totalErrors,
+			});
 
 			return {
 				tables: tableNames.length,
@@ -287,7 +280,7 @@ export class SQLiteBackend {
 				errors: totalErrors,
 			};
 		} catch (error) {
-			console.error("❌ [SQLite] Error during refresh:", error);
+			logger.error("Error during refresh", error);
 			throw new Error(
 				`SQLite refresh failed: ${error instanceof Error ? error.message : "Unknown error"}`,
 			);
@@ -307,8 +300,8 @@ export class SQLiteBackend {
 		try {
 			// Check if attachment download is enabled
 			if (!config.enableAttachmentDownload) {
-				console.log(
-					"📎 Attachment download is disabled (ENABLE_ATTACHMENT_DOWNLOAD=false)",
+				logger.info(
+					"Attachment download is disabled (ENABLE_ATTACHMENT_DOWNLOAD=false)",
 				);
 				return { downloaded: 0, errors: 0 };
 			}
@@ -317,13 +310,11 @@ export class SQLiteBackend {
 			const pendingAttachments = await getPendingAttachments(false);
 
 			if (pendingAttachments.length === 0) {
-				console.log("📎 No attachments to download");
+				logger.info("No attachments to download");
 				return { downloaded: 0, errors: 0 };
 			}
 
-			console.log(
-				`📎 Found ${pendingAttachments.length} attachments to download`,
-			);
+			logger.info(`Found ${pendingAttachments.length} attachments to download`);
 
 			// Ensure storage directory exists
 			const storagePath = config.storagePath;
@@ -353,8 +344,8 @@ export class SQLiteBackend {
 							const existingSize = existingFile.size;
 							if (existingSize === attachment.size) {
 								// File already exists with correct size, just mark as downloaded
-								console.log(
-									`📎 Skipping download (file exists): ${attachment.filename}`,
+								logger.debug(
+									`Skipping download (file exists): ${attachment.filename}`,
 								);
 								await markAttachmentDownloaded(
 									attachment.id,
@@ -362,13 +353,12 @@ export class SQLiteBackend {
 									attachment.size,
 								);
 								return;
-							} else {
-								// File exists but wrong size, delete and re-download
-								console.log(
-									`📎 File exists but wrong size (${existingSize} vs ${attachment.size}), re-downloading: ${attachment.filename}`,
-								);
-								await Bun.$`rm -f ${localPath}`;
 							}
+							// File exists but wrong size, delete and re-download
+							logger.debug(
+								`File exists but wrong size (${existingSize} vs ${attachment.size}), re-downloading: ${attachment.filename}`,
+							);
+							await Bun.$`rm -f ${localPath}`;
 						}
 
 						// Ensure directory structure exists
@@ -376,8 +366,8 @@ export class SQLiteBackend {
 						await Bun.$`mkdir -p ${dir}`;
 
 						// Download file
-						console.log(
-							`📎 Downloading: ${attachment.filename} to ${relativePath} (${attachment.size} bytes)`,
+						logger.info(
+							`Downloading: ${attachment.filename} to ${relativePath} (${attachment.size} bytes)`,
 						);
 						const response = await fetch(attachment.original_url);
 
@@ -398,7 +388,7 @@ export class SQLiteBackend {
 							attachment.size,
 						);
 
-						console.log(`   ✅ ${relativePath} downloaded successfully`);
+						logger.success(`${relativePath} downloaded successfully`);
 					},
 					maxConcurrentDownloads,
 				);
@@ -406,11 +396,9 @@ export class SQLiteBackend {
 			downloaded = processed;
 			errors = poolErrors;
 
-			console.log(
-				`📎 Attachment download completed: ${downloaded} successful, ${errors} errors`,
-			);
+			logger.info("Attachment download completed", { downloaded, errors });
 		} catch (error) {
-			console.error("❌ [SQLite] Error downloading attachments:", error);
+			logger.error("Error downloading attachments", error);
 			errors++;
 		}
 
@@ -460,7 +448,7 @@ export class SQLiteBackend {
 		try {
 			return await sqliteService.getStats();
 		} catch (error) {
-			console.error("❌ [SQLite] Error retrieving stats:", error);
+			logger.error("Error retrieving stats", error);
 			return null;
 		}
 	}
@@ -468,9 +456,9 @@ export class SQLiteBackend {
 	async close(): Promise<void> {
 		try {
 			await sqliteService.close();
-			console.log("✅ [SQLite] Connection closed");
+			logger.success("Connection closed");
 		} catch (error) {
-			console.error("❌ [SQLite] Error during close:", error);
+			logger.error("Error during close", error);
 		}
 	}
 }

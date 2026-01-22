@@ -3,7 +3,10 @@
  * Provides REST endpoints for cached Airtable data using Hono framework
  */
 
+import { loggers } from "../lib/logger";
 import { createApp } from "./app";
+
+const logger = loggers.server;
 
 /**
  * 🚀 API SERVER STARTUP WITH HONO
@@ -17,7 +20,7 @@ export async function startSQLiteApiServer(
 	port: number,
 	worker?: Worker,
 ): Promise<void> {
-	console.log(`🌐 Starting Hono API server on port ${port}`);
+	logger.start("Starting Hono API server", { port });
 
 	// 🚀 Create Hono application with all routes and middleware
 	const app = createApp(worker);
@@ -29,9 +32,11 @@ export async function startSQLiteApiServer(
 		fetch: app.fetch, // 🔑 Use Hono's fetch handler
 	});
 
-	console.log(`✅ Hono API server started: http://localhost:${port}`);
-	console.log(`📊 Health check: http://localhost:${port}/health`);
-	console.log(`📋 Tables: http://localhost:${port}/api/tables`);
-	console.log(`📈 Stats: http://localhost:${port}/api/stats`);
-	console.log(`🔄 Refresh: POST http://localhost:${port}/api/refresh`);
+	logger.success("Hono API server started", {
+		url: `http://localhost:${port}`,
+		healthCheck: `http://localhost:${port}/health`,
+		tables: `http://localhost:${port}/api/tables`,
+		stats: `http://localhost:${port}/api/stats`,
+		refresh: `POST http://localhost:${port}/api/refresh`,
+	});
 }

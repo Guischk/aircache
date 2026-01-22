@@ -8,6 +8,7 @@ import { bearerAuth } from "hono/bearer-auth";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 
+import { loggers } from "../lib/logger";
 import { setupAttachmentRoutes } from "./routes/attachments";
 // Import route handlers
 import { setupHealthRoutes } from "./routes/health";
@@ -16,6 +17,8 @@ import { setupStatsRoutes } from "./routes/stats";
 import { setupTableRoutes } from "./routes/tables";
 import { setupTypesRoutes } from "./routes/types";
 import { setupWebhookRoutes } from "./routes/webhooks";
+
+const log = loggers.api;
 
 // Types for context
 interface AppBindings {
@@ -97,7 +100,7 @@ export function createApp(worker?: Worker): Hono<AppContext> {
 
 	// ❌ Error handler
 	app.onError((err, c) => {
-		console.error("❌ API Error:", err);
+		log.error("API Error:", err);
 		return c.json(
 			{
 				error: "Internal server error",

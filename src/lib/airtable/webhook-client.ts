@@ -4,6 +4,9 @@
  */
 
 import { config } from "../../config";
+import { loggers } from "../logger";
+
+const logger = loggers.webhook;
 
 interface AirtableWebhook {
 	id: string;
@@ -103,9 +106,11 @@ export class AirtableWebhookClient {
 			},
 		};
 
-		console.log("🔗 Creating Airtable webhook...");
-		console.log(`   URL: ${notificationUrl}`);
-		console.log(`   Secret: ${secretBase64.substring(0, 10)}...`);
+		logger.start("Creating Airtable webhook");
+		logger.info("Webhook configuration", {
+			url: notificationUrl,
+			secretPreview: `${secretBase64.substring(0, 10)}...`,
+		});
 
 		const response = await fetch(url, {
 			method: "POST",
@@ -125,9 +130,10 @@ export class AirtableWebhookClient {
 
 		const data = (await response.json()) as CreateWebhookResponse;
 
-		console.log("✅ Webhook created successfully");
-		console.log(`   ID: ${data.id}`);
-		console.log(`   Expires: ${data.expirationTime}`);
+		logger.success("Webhook created successfully", {
+			id: data.id,
+			expires: data.expirationTime,
+		});
 
 		return data;
 	}
@@ -153,7 +159,7 @@ export class AirtableWebhookClient {
 			);
 		}
 
-		console.log(`✅ Webhook ${webhookId} deleted`);
+		logger.success(`Webhook ${webhookId} deleted`);
 	}
 
 	/**
@@ -181,8 +187,8 @@ export class AirtableWebhookClient {
 
 		for (let attempt = 1; attempt <= retries; attempt++) {
 			try {
-				console.log(
-					`🔔 Enabling notifications for webhook ${webhookId} (attempt ${attempt}/${retries})...`,
+				logger.info(
+					`Enabling notifications for webhook ${webhookId} (attempt ${attempt}/${retries})`,
 				);
 
 				const response = await fetch(url, {
@@ -198,18 +204,18 @@ export class AirtableWebhookClient {
 
 					// If 422, Airtable couldn't verify the webhook endpoint
 					if (response.status === 422) {
-						console.warn(
-							`⚠️  Webhook endpoint verification failed (attempt ${attempt}/${retries})`,
+						logger.warn(
+							`Webhook endpoint verification failed (attempt ${attempt}/${retries})`,
 						);
-						console.warn(
-							"   This usually means Airtable couldn't reach or verify the webhook URL",
+						logger.warn(
+							"This usually means Airtable couldn't reach or verify the webhook URL",
 						);
-						console.warn(`   Error: ${error}`);
+						logger.warn("Error details", error);
 
 						// Retry with exponential backoff if not last attempt
 						if (attempt < retries) {
 							const waitTime = delayMs * attempt;
-							console.log(`   Retrying in ${waitTime}ms...`);
+							logger.info(`Retrying in ${waitTime}ms`);
 							await new Promise((resolve) => setTimeout(resolve, waitTime));
 							continue;
 						}
@@ -220,17 +226,18 @@ export class AirtableWebhookClient {
 					);
 				}
 
-				console.log(`✅ Notifications enabled for webhook ${webhookId}`);
+				logger.success(`Notifications enabled for webhook ${webhookId}`);
 				return;
 			} catch (error) {
 				if (attempt === retries) {
 					throw error;
 				}
 				const waitTime = delayMs * attempt;
-				console.warn(
-					`⚠️  Error enabling notifications (attempt ${attempt}/${retries}): ${error}`,
+				logger.warn(
+					`Error enabling notifications (attempt ${attempt}/${retries})`,
+					error,
 				);
-				console.log(`   Retrying in ${waitTime}ms...`);
+				logger.info(`Retrying in ${waitTime}ms`);
 				await new Promise((resolve) => setTimeout(resolve, waitTime));
 			}
 		}
@@ -261,7 +268,7 @@ export class AirtableWebhookClient {
 	 */
 	private async verifyWebhookEndpoint(url: string): Promise<boolean> {
 		try {
-			console.log(`🔍 Verifying webhook endpoint is accessible: ${url}`);
+			logger.debug(`Verifying webhook endpoint is accessible: ${url}`);
 
 			const response = await fetch(url, {
 				method: "POST",
@@ -282,18 +289,18 @@ export class AirtableWebhookClient {
 				response.status === 200;
 
 			if (isAccessible) {
-				console.log(
-					`✅ Webhook endpoint is accessible (status: ${response.status})`,
+				logger.success(
+					`Webhook endpoint is accessible (status: ${response.status})`,
 				);
 			} else {
-				console.warn(
-					`⚠️  Webhook endpoint returned unexpected status: ${response.status}`,
+				logger.warn(
+					`Webhook endpoint returned unexpected status: ${response.status}`,
 				);
 			}
 
 			return isAccessible;
 		} catch (error) {
-			console.error(`❌ Failed to verify webhook endpoint: ${error}`);
+			logger.error("Failed to verify webhook endpoint", error);
 			return false;
 		}
 	}
@@ -309,24 +316,25 @@ export class AirtableWebhookClient {
 		webhookId: string;
 		created: boolean;
 	}> {
-		console.log("🔍 Checking for existing webhooks...");
+		logger.info("Checking for existing webhooks");
 
 		// Check if webhook already exists
 		const existing = await this.findWebhookByUrl(notificationUrl);
 
 		if (existing) {
-			console.log(`✅ Webhook already exists: ${existing.id}`);
-			console.log(`   URL: ${existing.notificationUrl}`);
-			console.log(`   Enabled: ${existing.isHookEnabled}`);
-			console.log(`   Notifications: ${existing.areNotificationsEnabled}`);
+			logger.success(`Webhook already exists: ${existing.id}`, {
+				url: existing.notificationUrl,
+				enabled: existing.isHookEnabled,
+				notifications: existing.areNotificationsEnabled,
+			});
 
 			// Enable notifications if disabled
 			if (!existing.areNotificationsEnabled) {
 				// Verify endpoint before attempting to enable
 				const isAccessible = await this.verifyWebhookEndpoint(notificationUrl);
 				if (!isAccessible) {
-					console.warn(
-						"⚠️  Webhook endpoint may not be accessible - attempting to enable notifications anyway",
+					logger.warn(
+						"Webhook endpoint may not be accessible - attempting to enable notifications anyway",
 					);
 				}
 
@@ -345,16 +353,16 @@ export class AirtableWebhookClient {
 		// Verify endpoint is accessible before enabling notifications
 		const isAccessible = await this.verifyWebhookEndpoint(notificationUrl);
 		if (!isAccessible) {
-			console.warn(
-				"⚠️  Warning: Webhook endpoint verification failed. This may cause enableNotifications to fail.",
+			logger.warn(
+				"Warning: Webhook endpoint verification failed. This may cause enableNotifications to fail.",
 			);
-			console.warn(
-				"   Airtable needs to be able to reach this URL to enable notifications.",
+			logger.warn(
+				"Airtable needs to be able to reach this URL to enable notifications.",
 			);
 		}
 
 		// Add a small delay to ensure the server is fully ready
-		console.log("⏳ Waiting 2s for server to be fully ready...");
+		logger.info("Waiting 2s for server to be fully ready");
 		await new Promise((resolve) => setTimeout(resolve, 2000));
 
 		// Enable notifications for new webhook with retry logic

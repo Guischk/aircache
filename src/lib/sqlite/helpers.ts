@@ -3,7 +3,10 @@
  * Provides high-level interface for cache management
  */
 
+import { loggers } from "../logger";
 import { type ActiveVersion, sqliteService } from "./index";
+
+const logger = loggers.sqlite;
 
 /**
  * Implements distributed locking using SQLite
@@ -15,7 +18,7 @@ export async function withLock<T>(
 	fn: () => Promise<T>,
 ): Promise<T | null> {
 	try {
-		console.log(`🔒 Attempting to acquire lock: ${name}`);
+		logger.debug(`Attempting to acquire lock: ${name}`);
 
 		const lockId = crypto.randomUUID();
 		const expiresAt = new Date(Date.now() + ttl * 1000).toISOString();
@@ -54,16 +57,16 @@ export async function withLock<T>(
 		});
 
 		if (!acquired) {
-			console.log(`⏸️ Lock ${name} already taken, skipping`);
+			logger.debug(`Lock ${name} already taken, skipping`);
 			return null;
 		}
 
-		console.log(`✅ Lock ${name} acquired for ${ttl}s`);
+		logger.debug(`Lock ${name} acquired for ${ttl}s`);
 
 		try {
 			// Execute the function
 			const result = await fn();
-			console.log(`🏁 Lock ${name} - operation completed successfully`);
+			logger.debug(`Lock ${name} - operation completed successfully`);
 			return result;
 		} finally {
 			// Release the lock
@@ -76,13 +79,13 @@ export async function withLock<T>(
           `)
 						.run(name, lockId);
 				});
-				console.log(`🔓 Lock ${name} released`);
+				logger.debug(`Lock ${name} released`);
 			} catch (unlockError) {
-				console.error(`⚠️ Error releasing lock ${name}:`, unlockError);
+				logger.error(`Error releasing lock ${name}`, unlockError);
 			}
 		}
 	} catch (error) {
-		console.error(`❌ Error in withLock "${name}":`, error);
+		logger.error(`Error in withLock "${name}"`, error);
 		throw error;
 	}
 }

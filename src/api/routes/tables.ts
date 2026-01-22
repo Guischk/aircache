@@ -3,6 +3,7 @@
  */
 
 import type { Hono } from "hono";
+import { loggers } from "../../lib/logger";
 import { normalizeKey } from "../../lib/utils/index";
 import type { AppContext } from "../app";
 import {
@@ -11,6 +12,8 @@ import {
 	handleTables,
 } from "../handlers/tables";
 import { convertResponseToHono } from "../utils";
+
+const logger = loggers.api;
 
 export function setupTableRoutes(app: Hono<AppContext>) {
 	// 📋 List all tables
@@ -34,7 +37,7 @@ export function setupTableRoutes(app: Hono<AppContext>) {
 	app.get("/api/tables/:tableName", async (c) => {
 		const rawTableName = decodeURIComponent(c.req.param("tableName"));
 		const tableName = normalizeKey(rawTableName);
-		console.log(`🔍 Table lookup: "${rawTableName}" -> "${tableName}"`);
+		logger.debug("Table lookup", { rawTableName, tableName });
 		const url = new URL(c.req.url);
 
 		const response = await handleTableRecords(tableName, url);

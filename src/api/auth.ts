@@ -2,6 +2,10 @@
  * Simple Bearer Token authentication middleware for the API
  */
 
+import { loggers } from "../lib/logger";
+
+const logger = loggers.auth;
+
 /**
  * Verifies Bearer Token authentication
  * @param request - Bun Request object
@@ -24,7 +28,7 @@ export function isAuthenticated(request: Request): boolean {
 	const expectedToken = process.env.BEARER_TOKEN;
 
 	if (!expectedToken) {
-		console.error("❌ BEARER_TOKEN not configured in environment variables");
+		logger.error("BEARER_TOKEN not configured in environment variables");
 		return false;
 	}
 
@@ -65,15 +69,19 @@ export function requireAuth(request: Request): Response | null {
 export function logAuthAttempt(request: Request, authenticated: boolean): void {
 	const authHeader = request.headers.get("Authorization");
 	const ip = request.headers.get("x-forwarded-for") || "unknown";
-	const userAgent = request.headers.get("user-agent") || "unknown";
 
 	if (authenticated) {
-		console.log(
-			`✅ Auth success - ${request.method} ${request.url} - IP: ${ip}`,
-		);
+		logger.debug("Auth success", {
+			method: request.method,
+			url: request.url,
+			ip,
+		});
 	} else {
-		console.log(
-			`❌ Auth failed - ${request.method} ${request.url} - IP: ${ip} - Auth: ${authHeader ? "present" : "missing"}`,
-		);
+		logger.warn("Auth failed", {
+			method: request.method,
+			url: request.url,
+			ip,
+			authPresent: !!authHeader,
+		});
 	}
 }

@@ -2,7 +2,10 @@
  * SQLite worker for data synchronization
  */
 
+import { loggers } from "../lib/logger";
 import { SQLiteBackend } from "./backends/sqlite-backend";
+
+const logger = loggers.worker;
 
 export interface WorkerMessage {
 	type: "refresh:start" | "refresh:stop" | "stats:get";
@@ -22,11 +25,11 @@ class SQLiteWorker {
 
 	constructor() {
 		this.backend = new SQLiteBackend();
-		console.log("🔧 [Worker] Initialized with SQLite backend");
+		logger.info("Initialized with SQLite backend");
 	}
 
 	async handleMessage(message: WorkerMessage): Promise<void> {
-		console.log(`📨 [Worker] Message received:`, message);
+		logger.debug("Message received", message);
 
 		switch (message.type) {
 			case "refresh:start":
@@ -42,22 +45,20 @@ class SQLiteWorker {
 				break;
 
 			default:
-				console.warn(`⚠️ [Worker] Unknown message:`, message);
+				logger.warn("Unknown message type", message);
 		}
 	}
 
 	private async handleRefreshStart(manual = false): Promise<void> {
 		if (this.isRefreshing) {
-			console.log("⏭️ [Worker] Refresh already in progress, skipped");
+			logger.info("Refresh already in progress, skipped");
 			return;
 		}
 
 		this.isRefreshing = true;
 
 		try {
-			console.log(
-				`🚀 [Worker] Starting ${manual ? "manual" : "automatic"} refresh`,
-			);
+			logger.start(`Starting ${manual ? "manual" : "automatic"} refresh`);
 
 			const stats = await this.backend.refreshData();
 
@@ -67,7 +68,7 @@ class SQLiteWorker {
 				manual,
 			});
 		} catch (error) {
-			console.error("❌ [Worker] Error during refresh:", error);
+			logger.error("Error during refresh", error);
 
 			this.postMessage({
 				type: "refresh:error",
@@ -81,11 +82,11 @@ class SQLiteWorker {
 
 	private async handleRefreshStop(): Promise<void> {
 		if (!this.isRefreshing) {
-			console.log("ℹ️ [Worker] No refresh in progress");
+			logger.info("No refresh in progress");
 			return;
 		}
 
-		console.log("🛑 [Worker] Refresh stop requested");
+		logger.info("Refresh stop requested");
 		// Note: In a more advanced implementation, we could
 		// implement cancellation logic
 		this.isRefreshing = false;
@@ -100,7 +101,7 @@ class SQLiteWorker {
 				stats,
 			});
 		} catch (error) {
-			console.error("❌ [Worker] Error retrieving stats:", error);
+			logger.error("Error retrieving stats", error);
 
 			this.postMessage({
 				type: "refresh:error",
@@ -116,20 +117,20 @@ class SQLiteWorker {
 			self.postMessage(response);
 		} else {
 			// Test or development context
-			console.log("📤 [Worker] Response:", response);
+			logger.debug("Response", response);
 		}
 	}
 
 	async close(): Promise<void> {
-		console.log("🔄 [Worker] Closing...");
+		logger.info("Closing");
 
 		if (this.isRefreshing) {
-			console.log("⏳ [Worker] Waiting for refresh to complete...");
+			logger.info("Waiting for refresh to complete");
 			// In a more advanced implementation, we would wait for refresh completion
 		}
 
 		await this.backend.close();
-		console.log("✅ [Worker] Closed");
+		logger.success("Closed");
 	}
 }
 
@@ -154,10 +155,10 @@ if (typeof self !== "undefined" && self.onmessage !== undefined) {
 	};
 
 	self.onerror = (error) => {
-		console.error("❌ [Worker] Global error:", error);
+		logger.error("Global worker error", error);
 	};
 
-	console.log("✅ [Worker] Ready to receive messages");
+	logger.ready("Ready to receive messages");
 }
 
 // Export for direct usage (tests, development)
@@ -165,12 +166,12 @@ export { SQLiteWorker };
 
 // Auto-initialization if executed directly
 if (import.meta.main) {
-	console.log("🔧 [Worker] Direct execution for test");
+	logger.info("Direct execution for test");
 
 	initializeWorker();
 
 	// Basic test
 	await worker.handleMessage({ type: "refresh:start", manual: true });
 
-	console.log("✅ [Worker] Test completed");
+	logger.success("Test completed");
 }

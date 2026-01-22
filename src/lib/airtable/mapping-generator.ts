@@ -5,7 +5,10 @@
  * and generates mappings between table IDs, original names, and normalized names.
  */
 
+import { loggers } from "../logger";
 import { normalizeKey } from "../utils/index";
+
+const logger = loggers.mapping;
 
 /**
  * Field metadata from Airtable
@@ -65,7 +68,7 @@ export async function fetchAirtableMetadata(): Promise<MappingData> {
 		);
 	}
 
-	console.log(`📡 Fetching metadata from Airtable API for base ${baseId}...`);
+	logger.start("Fetching metadata from Airtable API", { baseId });
 
 	const response = await fetch(
 		`https://api.airtable.com/v0/meta/bases/${baseId}/tables`,
@@ -118,9 +121,9 @@ function transformToMappingFormat(
 		};
 	}
 
-	console.log(
-		`✅ Fetched metadata for ${data.tables.length} tables from Airtable`,
-	);
+	logger.success("Fetched metadata from Airtable", {
+		tableCount: data.tables.length,
+	});
 
 	return {
 		generatedAt: new Date().toISOString(),
@@ -133,30 +136,30 @@ function transformToMappingFormat(
  * Generate mappings.json file
  */
 export async function generateMappingsFile(): Promise<void> {
-	console.log("🔄 Generating mappings.json file...");
+	logger.start("Generating mappings.json file...");
 
 	const metadata = await fetchAirtableMetadata();
 	const outputPath = "./src/lib/airtable/mappings.json";
 
 	await Bun.write(outputPath, JSON.stringify(metadata, null, 2));
 
-	console.log(`✅ Mappings file generated: ${outputPath}`);
-	console.log(`   Tables: ${Object.keys(metadata.tables).length}`);
+	logger.success("Mappings file generated", {
+		path: outputPath,
+		tableCount: Object.keys(metadata.tables).length,
+	});
 }
 
 /**
  * Sync mappings to SQLite databases (v1 and v2)
  */
 export async function syncMappingsToDatabase(): Promise<void> {
-	console.log("🔄 Syncing mappings to SQLite databases...");
+	logger.start("Syncing mappings to SQLite databases...");
 
 	// Read mappings file
 	const mappingsFile = Bun.file("./src/lib/airtable/mappings.json");
 
 	if (!(await mappingsFile.exists())) {
-		console.warn(
-			"⚠️ mappings.json not found. Run 'bun run types:mappings' first.",
-		);
+		logger.warn("mappings.json not found. Run 'bun run types:mappings' first.");
 		return;
 	}
 
@@ -185,7 +188,9 @@ export async function syncMappingsToDatabase(): Promise<void> {
 		syncedCount++;
 	}
 
-	console.log(`✅ Synced ${syncedCount} table mappings to both databases`);
+	logger.success("Synced table mappings to both databases", {
+		count: syncedCount,
+	});
 }
 
 /**
@@ -201,11 +206,11 @@ if (import.meta.main) {
 		} else if (command === "sync") {
 			await syncMappingsToDatabase();
 		} else {
-			console.error("Usage: bun mapping-generator.ts [generate|sync]");
+			logger.error("Usage: bun mapping-generator.ts [generate|sync]");
 			process.exit(1);
 		}
 	} catch (error) {
-		console.error("❌ Error:", error);
+		logger.error("Error:", error);
 		process.exit(1);
 	}
 }

@@ -4,7 +4,10 @@
  */
 
 import { Database } from "bun:sqlite";
-import { join } from "path";
+import { join } from "node:path";
+import { loggers } from "../logger";
+
+const logger = loggers.sqlite;
 
 type ActiveVersion = "v1" | "v2";
 
@@ -96,10 +99,10 @@ class SQLiteService {
 				this.inactiveDb = v1Db;
 			}
 
-			console.log(`✅ SQLite connected - Active: ${this.currentActive}`);
-			console.log(`📊 Databases: ${this.v1Path}, ${this.v2Path}`);
+			logger.success(`SQLite connected - Active: ${this.currentActive}`);
+			logger.info(`Databases: ${this.v1Path}, ${this.v2Path}`);
 		} catch (error) {
-			console.error("❌ SQLite connection error:", error);
+			logger.error("SQLite connection error", error);
 			throw error;
 		}
 	}
@@ -231,7 +234,7 @@ class SQLiteService {
 			`CREATE INDEX IF NOT EXISTS idx_table_name_normalized ON metadata_mappings(table_name_normalized)`,
 		);
 
-		console.log("✅ Data schema initialized");
+		logger.success("Data schema initialized");
 	}
 
 	/**
@@ -541,7 +544,7 @@ class SQLiteService {
 			this.inactiveDb.run(`DELETE FROM locks`);
 		});
 
-		console.log("🧹 Inactive database cleared");
+		logger.info("Inactive database cleared");
 	}
 
 	/**
@@ -563,7 +566,7 @@ class SQLiteService {
         UPDATE active_version SET version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1
       `);
 			stmt.run(version);
-			console.log(`🔄 Active version switched to: ${version}`);
+			logger.info(`Active version switched to: ${version}`);
 		} finally {
 			metadataDb.close();
 		}
@@ -591,7 +594,7 @@ class SQLiteService {
 		this.activeDb = this.inactiveDb;
 		this.inactiveDb = temp;
 
-		console.log(`🔄 Atomic switch completed to ${newActive}`);
+		logger.success(`Atomic switch completed to ${newActive}`);
 		return newActive;
 	}
 
@@ -800,7 +803,7 @@ class SQLiteService {
 			attachmentStmt.run(tableNorm, recordId);
 		});
 
-		console.log(`🗑️ Record deleted: ${id}`);
+		logger.debug(`Record deleted: ${id}`);
 	}
 
 	/**
@@ -862,7 +865,7 @@ class SQLiteService {
 		const deleted = result.changes || 0;
 
 		if (deleted > 0) {
-			console.log(`🧹 Cleaned up ${deleted} expired webhooks`);
+			logger.info(`Cleaned up ${deleted} expired webhooks`);
 		}
 
 		return deleted;
@@ -1075,7 +1078,7 @@ class SQLiteService {
 			this.inactiveDb.close();
 			this.inactiveDb = null;
 		}
-		console.log("✅ SQLite connections closed");
+		logger.success("SQLite connections closed");
 	}
 }
 

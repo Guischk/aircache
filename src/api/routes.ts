@@ -4,6 +4,7 @@
  */
 
 import { AIRTABLE_TABLE_NAMES } from "../lib/airtable/schema";
+import { loggers } from "../lib/logger";
 import {
 	countTableRecords,
 	flipActiveVersion,
@@ -24,6 +25,8 @@ import type {
 	TableRecordsResponse,
 	TablesListResponse,
 } from "./types";
+
+const logger = loggers.api;
 
 /**
  * Utilities for API responses
@@ -101,13 +104,14 @@ export async function handleHealth(request: Request): Promise<Response> {
 
 		const response = createSuccessResponse(healthInfo);
 
-		console.log(
-			`🩺 Health check - ${Date.now() - startTime}ms - Status: ${healthInfo.status}`,
-		);
+		logger.debug("Health check completed", {
+			duration: Date.now() - startTime,
+			status: healthInfo.status,
+		});
 
 		return createJsonResponse(response, dbHealthy ? 200 : 503);
 	} catch (error) {
-		console.error("❌ Health check failed:", error);
+		logger.error("Health check failed:", error);
 		return createErrorResponse(
 			"Health check failed",
 			"Unable to check system health",
@@ -151,13 +155,14 @@ export async function handleTables(request: Request): Promise<Response> {
 			total: tables.length || AIRTABLE_TABLE_NAMES.length,
 		};
 
-		console.log(
-			`📋 Tables list requested - ${response.total} tables (normalized)`,
-		);
+		logger.debug("Tables list requested", {
+			total: response.total,
+			normalized: true,
+		});
 
 		return createJsonResponse(createSuccessResponse(response, { version }));
 	} catch (error) {
-		console.error("❌ Error fetching tables:", error);
+		logger.error("Error fetching tables:", error);
 		return createErrorResponse(
 			"Failed to fetch tables",
 			"Unable to retrieve table list",
@@ -271,13 +276,14 @@ export async function handleTableRecords(
 			offset: offset || undefined,
 		};
 
-		console.log(
-			`📊 Table '${tableName}' requested - ${records.length} records`,
-		);
+		logger.debug("Table records requested", {
+			tableName,
+			recordCount: records.length,
+		});
 
 		return createJsonResponse(createSuccessResponse(response, { version }));
 	} catch (error) {
-		console.error(`❌ Error fetching records for table '${tableName}':`, error);
+		logger.error("Error fetching table records", { tableName, error });
 		return createErrorResponse(
 			"Failed to fetch table records",
 			`Unable to retrieve records for table '${tableName}'`,
@@ -367,14 +373,18 @@ export async function handleSingleRecord(
 			version: `v${version}`,
 		};
 
-		console.log(`🔍 Record '${recordId}' from table '${tableName}' requested`);
+		logger.debug("Single record requested", {
+			tableName,
+			recordId,
+		});
 
 		return createJsonResponse(createSuccessResponse(response, { version }));
 	} catch (error) {
-		console.error(
-			`❌ Error fetching record '${recordId}' from table '${tableName}':`,
+		logger.error("Error fetching record", {
+			tableName,
+			recordId,
 			error,
-		);
+		});
 		return createErrorResponse(
 			"Failed to fetch record",
 			`Unable to retrieve record '${recordId}' from table '${tableName}'`,
@@ -398,15 +408,16 @@ export async function handleStats(request: Request): Promise<Response> {
 	try {
 		const stats = await getCacheStats();
 
-		console.log(
-			`📈 Stats requested - ${stats.totalRecords} records across ${stats.totalTables} tables`,
-		);
+		logger.debug("Stats requested", {
+			totalRecords: stats.totalRecords,
+			totalTables: stats.totalTables,
+		});
 
 		return createJsonResponse(
 			createSuccessResponse(stats, { version: stats.activeVersion }),
 		);
 	} catch (error) {
-		console.error("❌ Error fetching stats:", error);
+		logger.error("Error fetching stats:", error);
 		return createErrorResponse(
 			"Failed to fetch stats",
 			"Unable to retrieve cache statistics",
@@ -447,7 +458,7 @@ export async function handleRefresh(
 			);
 		}
 
-		console.log("🔄 Manual refresh triggered");
+		logger.info("Manual refresh triggered");
 
 		// Trigger the refresh
 		worker.postMessage({ type: "refresh:start" });
@@ -460,7 +471,7 @@ export async function handleRefresh(
 
 		return createJsonResponse(createSuccessResponse(response));
 	} catch (error) {
-		console.error("❌ Error triggering refresh:", error);
+		logger.error("Error triggering refresh:", error);
 		return createErrorResponse(
 			"Failed to trigger refresh",
 			"Unable to start manual refresh",

@@ -28,6 +28,10 @@ export interface Config {
 	webhookIdempotencyTTL: number;
 	webhookAutoSetup: boolean;
 	webhookPublicUrl: string;
+
+	// Logger settings
+	logLevel: number;
+	logFancy: boolean;
 }
 
 export function loadConfig(): Config {
@@ -66,6 +70,10 @@ export function loadConfig(): Config {
 		), // 24 hours
 		webhookAutoSetup: process.env.WEBHOOK_AUTO_SETUP !== "false", // Default to true
 		webhookPublicUrl: process.env.WEBHOOK_PUBLIC_URL || "", // e.g., https://aircache.example.com
+
+		// Logger settings
+		logLevel: Number.parseInt(process.env.CONSOLA_LEVEL || "3"), // 3 = info level
+		logFancy: process.env.CONSOLA_FANCY !== "false", // Default to true
 	};
 }
 

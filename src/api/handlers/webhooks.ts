@@ -3,6 +3,10 @@
  * Gestion des webhooks Airtable avec refresh incrémental
  */
 
+import { loggers } from "../../lib/logger";
+
+const logger = loggers.webhook;
+
 /**
  * Structure du payload webhook Airtable
  * Docs: https://airtable.com/developers/web/api/webhooks-overview
@@ -50,9 +54,10 @@ export async function handleAirtableWebhook(
 	payload: AirtableWebhookNotification,
 ): Promise<Response> {
 	try {
-		console.log("🔗 [Webhook] Received Airtable webhook");
-		console.log(`   Timestamp: ${payload.timestamp}`);
-		console.log(`   Transaction: ${payload.baseTransactionNumber}`);
+		logger.info("Received Airtable webhook", {
+			timestamp: payload.timestamp,
+			transaction: payload.baseTransactionNumber,
+		});
 
 		// 1. Vérifier idempotency (éviter double processing)
 		if (payload.webhookId) {
@@ -62,7 +67,9 @@ export async function handleAirtableWebhook(
 			);
 
 			if (alreadyProcessed) {
-				console.log(`⏭️ [Webhook] Already processed: ${payload.webhookId}`);
+				logger.info("Webhook already processed (skipping)", {
+					webhookId: payload.webhookId,
+				});
 				return new Response(
 					JSON.stringify({
 						status: "skipped",
@@ -91,7 +98,7 @@ export async function handleAirtableWebhook(
 			? "incremental"
 			: "full";
 
-		console.log(`🔄 [Webhook] Triggering ${refreshType} refresh (async)`);
+		logger.info("Triggering refresh (async)", { refreshType });
 
 		// 4. Marquer le webhook comme traité AVANT le refresh (éviter race condition)
 		if (payload.webhookId) {
@@ -113,16 +120,16 @@ export async function handleAirtableWebhook(
 				const backend = new SQLiteBackend();
 
 				if (hasChangedTables && changedTablesById) {
-					console.log("🔄 [Webhook] Running incremental refresh...");
+					logger.start("Running incremental refresh...");
 					await backend.incrementalRefresh(changedTablesById);
 				} else {
-					console.log("🔄 [Webhook] Running full refresh...");
+					logger.start("Running full refresh...");
 					await backend.refreshData();
 				}
 
-				console.log(`✅ [Webhook] ${refreshType} refresh completed`);
+				logger.success("Refresh completed", { refreshType });
 			} catch (error) {
-				console.error("❌ [Webhook] Refresh error:", error);
+				logger.error("Refresh error:", error);
 			}
 		});
 
@@ -140,7 +147,7 @@ export async function handleAirtableWebhook(
 			},
 		);
 	} catch (error) {
-		console.error("❌ [Webhook] Error:", error);
+		logger.error("Webhook handler error:", error);
 		return new Response(
 			JSON.stringify({
 				status: "error",

@@ -3,12 +3,15 @@
  */
 
 import path from "node:path";
+import { loggers } from "../../lib/logger";
 import {
 	getAttachment,
 	getFieldAttachments,
 	getRecordAttachments,
 	getTableAttachments,
 } from "../../lib/sqlite/helpers";
+
+const logger = loggers.api;
 
 /**
  * List all attachments for a table
@@ -36,10 +39,10 @@ export async function handleTableAttachments(
 			},
 		);
 	} catch (error) {
-		console.error(
-			`❌ Error listing attachments for table '${tableName}':`,
+		logger.error("Error listing attachments for table", {
+			tableName,
 			error,
-		);
+		});
 		return new Response(
 			JSON.stringify({
 				success: false,
@@ -86,10 +89,11 @@ export async function handleRecordAttachments(
 			},
 		);
 	} catch (error) {
-		console.error(
-			`❌ Error listing attachments for record '${tableName}/${recordId}':`,
+		logger.error("Error listing attachments for record", {
+			tableName,
+			recordId,
 			error,
-		);
+		});
 		return new Response(
 			JSON.stringify({
 				success: false,
@@ -142,10 +146,12 @@ export async function handleFieldAttachments(
 			},
 		);
 	} catch (error) {
-		console.error(
-			`❌ Error listing attachments for field '${tableName}/${recordId}/${fieldName}':`,
+		logger.error("Error listing attachments for field", {
+			tableName,
+			recordId,
+			fieldName,
 			error,
-		);
+		});
 		return new Response(
 			JSON.stringify({
 				success: false,
@@ -206,10 +212,13 @@ export async function handleSpecificAttachment(
 
 		return serveAttachmentFile(attachment);
 	} catch (error) {
-		console.error(
-			`❌ Error serving specific attachment '${tableName}/${recordId}/${fieldName}/${filename}':`,
+		logger.error("Error serving specific attachment", {
+			tableName,
+			recordId,
+			fieldName,
+			filename,
 			error,
-		);
+		});
 		return new Response(
 			JSON.stringify({
 				success: false,
@@ -259,7 +268,10 @@ export async function handleAttachment(
 
 		return serveAttachmentFile(attachment);
 	} catch (error) {
-		console.error(`❌ Error serving attachment '${attachmentId}':`, error);
+		logger.error("Error serving attachment by ID", {
+			attachmentId,
+			error,
+		});
 		return new Response(
 			JSON.stringify({
 				success: false,

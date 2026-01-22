@@ -5,6 +5,9 @@
 
 import type { Context, Next } from "hono";
 import { config } from "../../config";
+import { loggers } from "../../lib/logger";
+
+const logger = loggers.webhook;
 
 /**
  * Valide la signature HMAC du webhook Airtable
@@ -16,7 +19,7 @@ export async function validateWebhookSignature(
 	try {
 		// 1. Vérifier que le secret est configuré
 		if (!config.webhookSecret) {
-			console.error("❌ WEBHOOK_SECRET not configured");
+			logger.error("WEBHOOK_SECRET not configured");
 			return c.json({ error: "Webhook authentication not configured" }, 500);
 		}
 
@@ -48,7 +51,7 @@ export async function validateWebhookSignature(
 		const computedBuffer = new Uint8Array(Buffer.from(hmac, "hex"));
 
 		if (providedBuffer.length !== computedBuffer.length) {
-			console.warn("⚠️ Invalid webhook signature (length mismatch)");
+			logger.warn("Invalid webhook signature (length mismatch)");
 			return c.json({ error: "Invalid signature" }, 401);
 		}
 
@@ -64,12 +67,12 @@ export async function validateWebhookSignature(
 		}
 
 		if (!isEqual) {
-			console.warn("⚠️ Invalid webhook signature");
+			logger.warn("Invalid webhook signature");
 			return c.json({ error: "Invalid signature" }, 401);
 		}
 
 		if (!crypto.timingSafeEqual(providedBuffer, computedBuffer)) {
-			console.warn("⚠️ Invalid webhook signature");
+			logger.warn("Invalid webhook signature");
 			return c.json({ error: "Invalid signature" }, 401);
 		}
 
@@ -81,7 +84,7 @@ export async function validateWebhookSignature(
 			const diff = Math.abs(now - webhookTime);
 
 			if (diff > config.webhookTimestampWindow * 1000) {
-				console.warn(`⚠️ Webhook timestamp too old: ${diff}ms`);
+				logger.warn("Webhook timestamp too old", { diffMs: diff });
 				return c.json({ error: "Webhook timestamp expired" }, 401);
 			}
 		}
@@ -89,10 +92,10 @@ export async function validateWebhookSignature(
 		// 7. Stocker le body parsé pour le handler
 		c.set("webhookBody", payload);
 
-		console.log("✅ Webhook signature validated");
+		logger.debug("Webhook signature validated");
 		await next();
 	} catch (error) {
-		console.error("❌ Webhook validation error:", error);
+		logger.error("Webhook validation error:", error);
 		return c.json({ error: "Webhook validation failed" }, 401);
 	}
 }
@@ -114,9 +117,9 @@ export async function webhookRateLimit(
 
 	if (timeSinceLastWebhook < config.webhookRateLimit) {
 		const waitTime = config.webhookRateLimit - timeSinceLastWebhook;
-		console.warn(
-			`⚠️ Rate limit: webhook too soon (wait ${waitTime.toFixed(1)}s)`,
-		);
+		logger.warn("Rate limit: webhook too soon", {
+			waitSeconds: waitTime.toFixed(1),
+		});
 		return c.json(
 			{
 				error: "Rate limit exceeded",
