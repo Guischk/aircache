@@ -40,17 +40,27 @@ export async function validateWebhookSignature(
 
 		// 2. Récupérer signature du header
 		const signature = c.req.header("X-Airtable-Content-MAC");
-		if (!signature || !signature.startsWith("sha256=")) {
-			logger.error("Missing or invalid signature header", {
+		if (!signature) {
+			logger.error("Missing signature header");
+			return c.json({ error: "Missing signature header" }, 401);
+		}
+
+		// Airtable peut envoyer soit "sha256=" soit "hmac-sha256="
+		const validPrefixes = ["sha256=", "hmac-sha256="];
+		const hasValidPrefix = validPrefixes.some((prefix) =>
+			signature.startsWith(prefix),
+		);
+
+		if (!hasValidPrefix) {
+			logger.error("Invalid signature format", {
 				signature,
-				hasSignature: !!signature,
-				startsWithSha256: signature?.startsWith("sha256="),
+				expectedPrefixes: validPrefixes,
 			});
-			return c.json({ error: "Missing or invalid signature header" }, 401);
+			return c.json({ error: "Invalid signature format" }, 401);
 		}
 
 		logger.info("Signature header found", {
-			signaturePreview: `${signature.substring(0, 20)}...`,
+			signaturePreview: `${signature.substring(0, 30)}...`,
 		});
 
 		// 3. Lire le body (nécessaire pour HMAC)
@@ -71,18 +81,18 @@ export async function validateWebhookSignature(
 			.update(bodyData)
 			.digest("hex");
 
-		const computedSignature = `sha256=${hmac}`;
+		// Extraire juste le hash de la signature (enlever le préfixe)
+		const providedHash = signature.replace(/^(sha256=|hmac-sha256=)/, "");
 
 		logger.info("Signature comparison", {
-			provided: signature,
-			computed: computedSignature,
-			match: signature === computedSignature,
+			providedSignature: signature,
+			providedHash,
+			computedHash: hmac,
+			match: providedHash === hmac,
 		});
 
 		// 5. Timing-safe comparison
-		const providedBuffer = new Uint8Array(
-			Buffer.from(signature.replace("sha256=", ""), "hex"),
-		);
+		const providedBuffer = new Uint8Array(Buffer.from(providedHash, "hex"));
 		const computedBuffer = new Uint8Array(Buffer.from(hmac, "hex"));
 
 		if (providedBuffer.length !== computedBuffer.length) {
@@ -106,16 +116,16 @@ export async function validateWebhookSignature(
 
 		if (!isEqual) {
 			logger.warn("Invalid webhook signature (mismatch)", {
-				provided: signature,
-				computed: computedSignature,
+				providedHash,
+				computedHash: hmac,
 			});
 			return c.json({ error: "Invalid signature" }, 401);
 		}
 
 		if (!crypto.timingSafeEqual(providedBuffer, computedBuffer)) {
 			logger.warn("Invalid webhook signature (crypto.timingSafeEqual failed)", {
-				provided: signature,
-				computed: computedSignature,
+				providedHash,
+				computedHash: hmac,
 			});
 			return c.json({ error: "Invalid signature" }, 401);
 		}
