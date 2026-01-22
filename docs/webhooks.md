@@ -1,87 +1,74 @@
-# 🔗 Configuration des Webhooks Airtable
+# Webhook Configuration
 
-Guide pour configurer les webhooks Airtable afin de mettre à jour automatiquement votre cache Aircache.
+Configure Airtable webhooks to automatically update your Aircache in real-time when data changes.
 
-## Vue d'ensemble
+## Overview
 
-Les webhooks Airtable permettent à votre base de notifier Aircache lorsque des données changent. Aircache met ensuite à jour son cache de manière **incrémentale** (seulement les records modifiés) pour une latence minimale.
+Webhooks enable **incremental cache updates** - only modified records are refreshed instead of the entire database.
 
-**Avantages:**
-- ⚡ **Temps réel:** Cache mis à jour en ~500ms après modification Airtable
-- 💰 **Économie API:** Refresh incrémental consomme moins de quota
-- 🔄 **Automatique:** Plus besoin de déclencher manuellement les refreshs
+**Benefits:**
+- Real-time updates (~500ms after Airtable change)
+- Reduced API usage (incremental vs full refresh)
+- Lower latency for end users
 
-**Mode de refresh:**
-- **Incrémental (par défaut):** Met à jour uniquement les records créés/modifiés/supprimés
-- **Complet (fallback):** Si le format webhook est inconnu, refresh complet de la base
+## Quick Setup (Auto Mode)
 
----
+Aircache can automatically create and configure webhooks on startup.
 
-## Prérequis
-
-1. ✅ Aircache déployé et accessible via une URL publique
-2. ✅ Accès à l'API Airtable avec un Personal Access Token
-3. ✅ Droits admin sur la base Airtable
-
----
-
-## Configuration Aircache
-
-### 1. Générer un secret webhook
+### 1. Generate Webhook Secret
 
 ```bash
-# Générer un secret aléatoire sécurisé (minimum 32 caractères)
 openssl rand -hex 32
 ```
 
-### 2. Configurer les variables d'environnement
+### 2. Configure Environment Variables
 
-Ajouter dans votre `.env`:
+Add to your `.env`:
 
 ```bash
-# OBLIGATOIRE: Secret pour validation HMAC des webhooks
-WEBHOOK_SECRET=8f7a3b2c1d9e8f7a6b5c4d3e2f1a9b8c7d6e5f4a3b2c1d9e8f7a6b5c4d3e2f1a
+# Required for auto-setup
+WEBHOOK_PUBLIC_URL=https://aircache.yourcompany.com
+WEBHOOK_SECRET=your_generated_secret_here
 
-# OPTIONNEL: Temps minimum entre deux refreshs (secondes)
+# Optional (defaults shown)
+WEBHOOK_AUTO_SETUP=true
 WEBHOOK_RATE_LIMIT=30
-
-# OPTIONNEL: Fenêtre de temps pour accepter un webhook (secondes)
 WEBHOOK_TIMESTAMP_WINDOW=300
-
-# OPTIONNEL: Durée de rétention des webhooks traités (secondes)
 WEBHOOK_IDEMPOTENCY_TTL=86400
 ```
 
-### 3. Redémarrer Aircache
+### 3. Start Aircache
 
 ```bash
 bun index.ts
 ```
 
-Vérifier dans les logs:
+The webhook will be automatically created. Check logs for confirmation:
+
 ```
-✅ Server started on http://localhost:3000
-🔗 Webhook endpoint available at /webhooks/airtable/refresh
+✅ Webhook auto-setup complete (new webhook created)
+   Webhook ID: achw8xKJN2m3PqRst
+   Endpoint: https://aircache.yourcompany.com/webhooks/airtable/refresh
 ```
 
----
+## Manual Setup
 
-## Configuration Airtable
-
-### Via l'API Airtable
-
-Utilisez ce script pour créer le webhook:
+If you prefer manual control, disable auto-setup:
 
 ```bash
-#!/bin/bash
+WEBHOOK_AUTO_SETUP=false
+```
 
+### Create Webhook via API
+
+```bash
 # Configuration
-AIRTABLE_TOKEN="pat_votre_token"
-BASE_ID="app_votre_base_id"
-AIRCACHE_URL="https://aircache.votre-domaine.com"
-WEBHOOK_SECRET="8f7a3b2c1d9e8f7a6b5c4d3e2f1a9b8c7d6e5f4a3b2c1d9e8f7a6b5c4d3e2f1a"
+AIRTABLE_TOKEN="pat_your_token"
+BASE_ID="app_your_base_id"
+AIRCACHE_URL="https://aircache.yourcompany.com"
+WEBHOOK_SECRET="your_secret_here"
 
-# Créer le webhook
+# Create webhook
 curl -X POST "https://api.airtable.com/v0/bases/${BASE_ID}/webhooks" \
   -H "Authorization: Bearer ${AIRTABLE_TOKEN}" \
   -H "Content-Type: application/json" \
@@ -102,123 +89,239 @@ curl -X POST "https://api.airtable.com/v0/bases/${BASE_ID}/webhooks" \
   }"
 ```
 
-**Réponse attendue:**
-```json
-{
-  "id": "ach...",
-  "macSecretBase64": "...",
-  "expirationTime": "2026-..."
-}
+### Enable Notifications
+
+```bash
+WEBHOOK_ID="achw_your_webhook_id"
+
+curl -X POST "https://api.airtable.com/v0/bases/${BASE_ID}/webhooks/${WEBHOOK_ID}/enableNotifications" \
+  -H "Authorization: Bearer ${AIRTABLE_TOKEN}"
 ```
 
----
+## Configuration Reference
 
-## Vérification
+### Environment Variables
 
-### 1. Tester la connexion webhook
+| Variable                    | Default | Description                                    |
+| --------------------------- | ------- | ---------------------------------------------- |
+| `WEBHOOK_PUBLIC_URL`        | -       | Public URL of your Aircache (required for auto)|
+| `WEBHOOK_SECRET`            | -       | Secret for HMAC validation (min 32 chars)      |
+| `WEBHOOK_AUTO_SETUP`        | `true`  | Enable automatic webhook creation              |
+| `WEBHOOK_RATE_LIMIT`        | `30`    | Minimum seconds between refreshes              |
+| `WEBHOOK_TIMESTAMP_WINDOW`  | `300`   | Max age of webhook timestamp (seconds)         |
+| `WEBHOOK_IDEMPOTENCY_TTL`   | `86400` | Deduplication cache duration (seconds)         |
 
-Créer un record de test dans votre base Airtable et vérifier les logs Aircache:
+## Verification
+
+### Test Webhook
+
+1. Modify a record in your Airtable base
+2. Check Aircache logs:
 
 ```
 🔗 [Webhook] Received Airtable webhook
-   Timestamp: 2026-01-22T...
+   Timestamp: 2026-01-22T10:30:00.000Z
    Transaction: 12345
 ✅ [Webhook] Signature validated
-🔄 [SQLite] Using incremental refresh
+🔄 [Webhook] Triggering incremental refresh (async)
    📥 Fetching 1 records...
    ✅ 1 records updated in cache
-✅ [Webhook] incremental refresh completed
 ```
 
-### 2. Test manuel du endpoint
+### List Existing Webhooks
 
 ```bash
-# Générer un payload de test avec signature HMAC
-WEBHOOK_SECRET="votre-secret"
+curl "https://api.airtable.com/v0/bases/${BASE_ID}/webhooks" \
+  -H "Authorization: Bearer ${AIRTABLE_TOKEN}"
+```
+
+### Manual Test
+
+```bash
+# Generate test payload
+WEBHOOK_SECRET="your_secret"
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 PAYLOAD="{\"timestamp\":\"$TIMESTAMP\",\"webhookId\":\"test-$(date +%s)\"}"
 SIGNATURE="sha256=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" | cut -d' ' -f2)"
 
-# Appeler le webhook
-curl -X POST "https://aircache.votre-domaine.com/webhooks/airtable/refresh" \
+# Send test request
+curl -X POST "https://aircache.yourcompany.com/webhooks/airtable/refresh" \
   -H "Content-Type: application/json" \
   -H "X-Airtable-Content-MAC: $SIGNATURE" \
   -d "$PAYLOAD"
 ```
 
----
+## Troubleshooting
 
-## Dépannage
+### Auto-Setup Errors
 
-### Erreur: "Missing or invalid signature header"
+**Error: `WEBHOOK_PUBLIC_URL not configured`**
 
-**Solution:**
-1. Vérifier que Airtable envoie bien le header
-2. Vérifier que le `WEBHOOK_SECRET` est identique partout
-3. Régénérer le webhook dans Airtable
+Set the public URL in your `.env`:
+```bash
+WEBHOOK_PUBLIC_URL=https://aircache.yourcompany.com
+```
 
-### Erreur: "Invalid signature"
+**Error: `Failed to create webhook: 401`**
 
-**Solution:**
-1. Vérifier que `WEBHOOK_SECRET` est exactement le même
-2. Pas d'espaces ou caractères cachés dans le secret
-3. Utiliser la même encoding (hex)
+- Verify `AIRTABLE_PERSONAL_TOKEN` is correct
+- Ensure token has `data.records:write` permission
+- Regenerate token at https://airtable.com/create/tokens
 
-### Erreur: "Webhook timestamp expired"
+**Error: `Failed to create webhook: 422`**
 
-**Solution:**
-1. Vérifier la latence réseau
-2. Augmenter `WEBHOOK_TIMESTAMP_WINDOW`
-3. Vérifier que l'horloge du serveur est synchronisée (NTP)
+- Ensure `WEBHOOK_PUBLIC_URL` is publicly accessible (not localhost)
+- Verify URL uses HTTPS
+- Test accessibility: `curl -I https://aircache.yourcompany.com/health`
 
-### Erreur: "Rate limit exceeded"
+### Runtime Errors
 
-**Solution:**
-1. Vérifier qu'il n'y a pas de boucle infinie
-2. Augmenter `WEBHOOK_RATE_LIMIT` si nécessaire
+**Error: `Missing or invalid signature header`**
 
----
+- Verify `WEBHOOK_SECRET` matches between Aircache and Airtable
+- Check for whitespace or hidden characters in secret
+- Regenerate webhook in Airtable
 
-## Sécurité
+**Error: `Invalid signature`**
 
-### Meilleures pratiques
+- Ensure same secret is used in both systems
+- Check secret encoding (hex format from `openssl rand -hex 32`)
 
-1. ✅ **Secret fort:** Minimum 32 caractères aléatoires
-2. ✅ **HTTPS uniquement:** Ne jamais exposer le webhook en HTTP
-3. ✅ **Rate limiting:** Activer pour éviter les abus
-4. ✅ **Logging:** Monitor les webhooks rejetés
-5. ✅ **Rotation du secret:** Changer le secret périodiquement
+**Error: `Webhook timestamp expired`**
 
-### Rotation du secret
+- Check network latency between Airtable and your server
+- Increase `WEBHOOK_TIMESTAMP_WINDOW` if needed
+- Verify server clock is synchronized (NTP)
+
+**Error: `Rate limit exceeded`**
+
+- Check for infinite loops (webhook triggering refresh triggering webhook)
+- Increase `WEBHOOK_RATE_LIMIT` if legitimate high-frequency updates
+
+## Security Best Practices
+
+### Required
+
+- Use HTTPS only (never HTTP)
+- Strong secret (minimum 32 random characters)
+- Never commit `.env` to version control
+- Use different secrets for different environments
+
+### Recommended
+
+- Rotate secrets every 90 days
+- Monitor rejected webhooks for abuse attempts
+- Enable rate limiting
+- Use environment-specific URLs (prod/staging)
+
+### Secret Rotation
 
 ```bash
-# 1. Générer nouveau secret
+# 1. Generate new secret
 NEW_SECRET=$(openssl rand -hex 32)
 
-# 2. Mettre à jour Aircache .env
-# WEBHOOK_SECRET=$NEW_SECRET
-# Redémarrer Aircache
+# 2. Update Aircache .env
+WEBHOOK_SECRET=$NEW_SECRET
 
-# 3. Mettre à jour le webhook Airtable
+# 3. Restart Aircache
+bun index.ts
+
+# 4. Update Airtable webhook
 curl -X PATCH "https://api.airtable.com/v0/bases/${BASE_ID}/webhooks/${WEBHOOK_ID}" \
   -H "Authorization: Bearer ${AIRTABLE_TOKEN}" \
   -H "Content-Type: application/json" \
   -d "{\"macSecretBase64\": \"$(echo -n $NEW_SECRET | base64)\"}"
 ```
 
----
+## Multiple Environments
 
-## Références
+Use different webhook URLs for each environment:
+
+**Production:**
+```bash
+WEBHOOK_PUBLIC_URL=https://aircache.prod.com
+WEBHOOK_SECRET=prod_secret_here
+```
+
+**Staging:**
+```bash
+WEBHOOK_PUBLIC_URL=https://aircache.staging.com
+WEBHOOK_SECRET=staging_secret_here
+```
+
+Each environment will have its own Airtable webhook.
+
+## Development with Webhooks
+
+For local development, expose your server via a tunnel:
+
+```bash
+# Using cloudflared
+cloudflared tunnel --url http://localhost:3000
+
+# Configure the tunnel URL
+WEBHOOK_PUBLIC_URL=https://xyz.trycloudflare.com
+```
+
+## Webhook Management
+
+### Delete Webhook
+
+```bash
+WEBHOOK_ID="achw_your_webhook_id"
+
+curl -X DELETE \
+  "https://api.airtable.com/v0/bases/${BASE_ID}/webhooks/${WEBHOOK_ID}" \
+  -H "Authorization: Bearer ${AIRTABLE_TOKEN}"
+```
+
+### Update Webhook URL
+
+Airtable doesn't support updating the URL. Instead:
+
+1. Delete the old webhook
+2. Create a new webhook with the new URL
+3. Or change `WEBHOOK_PUBLIC_URL` and restart Aircache (auto-setup will create new webhook)
+
+## Webhook Lifecycle
+
+Airtable webhooks expire after **7 days of inactivity**. Aircache handles this automatically:
+
+- Active webhooks are refreshed on each notification
+- Auto-setup recreates webhooks on restart if missing
+- Monitor logs for expiration warnings
+
+## Advanced Configuration
+
+### Custom Webhook Filters
+
+For advanced filtering, manually create webhooks with custom specifications:
+
+```json
+{
+  "specification": {
+    "options": {
+      "filters": {
+        "dataTypes": ["tableData"],
+        "recordChangeScope": "tblXXX"  // Specific table only
+      }
+    }
+  }
+}
+```
+
+### Webhook Batching
+
+Airtable may batch multiple changes into a single webhook notification. Aircache handles this automatically by processing all changes in the `payloads` array.
+
+## References
 
 - [Airtable Webhooks API](https://airtable.com/developers/web/api/webhooks-overview)
 - [HMAC Authentication](https://en.wikipedia.org/wiki/HMAC)
-- [Aircache Documentation](../README.md)
-
----
+- [Aircache Configuration](../README.md#configuration)
 
 ## Support
 
-Besoin d'aide ? 
-- 📖 [Documentation complète](../README.md)
-- 🐛 [Signaler un bug](https://github.com/guischk/aircache/issues)
-- 💬 [Discussions](https://github.com/guischk/aircache/discussions)
+- [Full Documentation](../README.md)
+- [Report Issues](https://github.com/guischk/aircache/issues)
+- [Discussions](https://github.com/guischk/aircache/discussions)

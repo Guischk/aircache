@@ -1,138 +1,88 @@
 # Aircache Documentation
 
-Welcome to the Aircache documentation! This comprehensive guide covers everything you need to know about setting up, configuring, and deploying the high-performance Airtable cache service.
+Complete guide for setting up and running Aircache - a high-performance SQLite cache for Airtable.
 
-## 🚀 Getting Started
+## Getting Started
 
-Perfect for new users who want to get Aircache up and running quickly.
+New to Aircache? Start here:
 
-- **[Quick Start Guide](getting-started/quick-start.md)** - Get Aircache running in 5 minutes
-- **[Configuration Guide](getting-started/configuration.md)** - Detailed environment setup and options
+- **[Quick Start Guide](getting-started/quick-start.md)** - Deploy in 5 minutes
+- **[Configuration Guide](getting-started/configuration.md)** - Environment variables and settings
+- **[Webhook Setup](webhooks.md)** - Real-time cache updates
 
-## 🏗️ Architecture
+## Architecture
 
-Understand how Aircache works under the hood.
+How Aircache works:
 
-- **[System Overview](architecture/overview.md)** - Core architecture and design patterns
-- **[SQLite Backend](architecture/sqlite-backend.md)** - Database implementation details
+- **[System Overview](architecture/overview.md)** - Core design patterns
+- **[SQLite Backend](architecture/sqlite-backend.md)** - Database implementation
 
-## ⚡ Performance
+## Performance
 
-Learn about Aircache's performance characteristics and optimization techniques.
+Optimization and benchmarking:
 
-- **[Benchmarks](performance/benchmarks.md)** - Performance comparisons and metrics
-- **[Optimizations](performance/optimizations.md)** - Performance tuning techniques
-- **[Attachment Handling](performance/attachments.md)** - File download optimizations
+- **[Benchmarks](performance/benchmarks.md)** - Performance metrics
+- **[Optimizations](performance/optimizations.md)** - Tuning techniques
+- **[Attachment Handling](performance/attachments.md)** - File optimization
 
-## 🚀 Deployment
+## Deployment
 
-Deploy Aircache in various environments from development to production.
+Production guides:
 
-- **[Production Deployment](deployment/production.md)** - Complete production setup guide
-- **[Railway Platform](deployment/railway.md)** - Deploy on Railway cloud platform
+- **[Production Setup](deployment/production.md)** - Complete deployment guide
+- **[Railway Platform](deployment/railway.md)** - One-click Railway deployment
 
-## 🛠️ Development
+## Development
 
-Resources for developers working on or with Aircache.
+For contributors:
 
-- **[Testing Guide](development/testing.md)** - Testing framework and best practices
-- **[Security Guidelines](development/security.md)** - Security best practices
-- **[Development Scripts](development/scripts.md)** - Available development tools
-- **[API Benchmarks](development/api-benchmarks.md)** - API performance testing
+- **[Testing Guide](development/testing.md)** - Test framework
+- **[Security Guidelines](development/security.md)** - Best practices
+- **[Development Scripts](development/scripts.md)** - Available commands
+- **[API Benchmarks](development/api-benchmarks.md)** - Performance testing
 
-## 📊 Quick Reference
+## Quick Reference
 
-### System Requirements
-- **Runtime**: Bun 1.0+
-- **Memory**: 512MB minimum, 2GB recommended
-- **Storage**: 10GB minimum (depends on dataset size)
-- **Network**: Stable internet for Airtable API access
+**System Requirements:**
+- Bun 1.0+
+- 512MB RAM minimum (2GB recommended)
+- 10GB storage (varies with dataset size)
 
-### Key Commands
+**Key Commands:**
 ```bash
-# Installation
-bun install
-
-# Development
-bun --hot index.ts
-
-# Testing
-bun test
-
-# Production
-bun index.ts
+bun install              # Install dependencies
+bun --hot index.ts       # Development mode
+bun test                 # Run tests
+bun run benchmark        # Performance tests
+bun run validate         # Lint + test + benchmark
 ```
 
-### Environment Variables
+**Essential Variables:**
 ```bash
-# Required
 AIRTABLE_PERSONAL_TOKEN=pat_your_token
 AIRTABLE_BASE_ID=app_your_base_id
 BEARER_TOKEN=your_api_token
-
-# Optional
-PORT=3000
-REFRESH_INTERVAL=86400
-ENABLE_ATTACHMENT_DOWNLOAD=true
 ```
 
-## 🆘 Troubleshooting
+## Common Issues
 
-### Common Issues
+| Issue                | Solution                                           |
+| -------------------- | -------------------------------------------------- |
+| Service won't start  | Check environment variables and file permissions   |
+| High memory usage    | Review dataset size and refresh interval           |
+| Slow performance     | Check database indexes and attachment settings     |
+| API errors           | Verify Airtable token permissions                  |
+| Webhook not working  | Verify WEBHOOK_PUBLIC_URL and WEBHOOK_SECRET       |
 
-| Issue | Solution |
-|-------|----------|
-| Service won't start | Check environment variables and file permissions |
-| High memory usage | Review dataset size and refresh interval |
-| Slow performance | Check database indexes and attachment settings |
-| API errors | Verify Airtable token permissions and base access |
+## Getting Help
 
-### Getting Help
+1. Check application logs for errors
+2. Verify environment variables are set correctly
+3. Review relevant documentation sections
+4. [Report issues](https://github.com/guischk/aircache/issues) on GitHub
 
-1. **Check logs**: Review application logs for error details
-2. **Verify config**: Ensure all required environment variables are set
-3. **Test connectivity**: Verify network access to Airtable API
-4. **Review docs**: Check relevant documentation sections
-5. **File issue**: Report bugs on the project repository
+## Additional Resources
 
-## 📈 Performance Overview
-
-Aircache delivers significant performance improvements over direct Airtable API access:
-
-- **240x faster** average response time
-- **99.4% latency reduction**
-- **Zero failures** in production workloads
-- **Unlimited local scalability**
-
-## 🔒 Security Features
-
-- Bearer token authentication for API access
-- File system permission controls
-- Secure attachment handling
-- Rate limiting support
-- Production hardening guidelines
-
-## 🔧 Maintenance
-
-### Regular Tasks
-- **Weekly**: Review logs and performance metrics
-- **Monthly**: Update dependencies and security patches
-- **Quarterly**: Test backup/recovery procedures
-- **Annually**: Security audit and performance review
-
-### Monitoring
-- Service uptime and availability
-- Response time and throughput
-- Error rates and failure patterns
-- Disk usage and storage growth
-- Memory and CPU utilization
-
-## 📚 Additional Resources
-
-- **[Main README](../README.md)** - Project overview and quick start
-- **[CLAUDE.md](../CLAUDE.md)** - Development guidelines for Claude Code
-- **[Tests Directory](../tests/)** - Example tests and benchmarks
-
----
-
-**Note**: This documentation is regularly updated to reflect the latest features and best practices. For the most current information, always refer to the latest version in the repository.
+- [Main README](../README.md) - Project overview
+- [AGENTS.md](../AGENTS.md) - Development guidelines
+- [Tests Directory](../tests/) - Example tests
