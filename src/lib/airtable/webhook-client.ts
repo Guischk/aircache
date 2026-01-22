@@ -87,9 +87,6 @@ export class AirtableWebhookClient {
 	async createWebhook(notificationUrl: string): Promise<CreateWebhookResponse> {
 		const url = `${this.apiUrl}/bases/${this.baseId}/webhooks`;
 
-		// Decode webhook secret from hex to base64 for Airtable
-		const secretBase64 = this.encodeSecretToBase64(config.webhookSecret);
-
 		const body = {
 			notificationUrl,
 			specification: {
@@ -109,7 +106,6 @@ export class AirtableWebhookClient {
 		logger.start("Creating Airtable webhook");
 		logger.info("Webhook configuration", {
 			url: notificationUrl,
-			secretPreview: `${secretBase64.substring(0, 10)}...`,
 		});
 
 		const response = await fetch(url, {
@@ -130,9 +126,24 @@ export class AirtableWebhookClient {
 
 		const data = (await response.json()) as CreateWebhookResponse;
 
+		// Store the macSecretBase64 returned by Airtable
+		const { sqliteService } = await import("../sqlite");
+
+		// Ensure database is connected
+		if (!sqliteService.isConnected()) {
+			await sqliteService.connect();
+		}
+
+		await sqliteService.storeWebhookConfig(
+			data.id,
+			data.macSecretBase64,
+			notificationUrl,
+		);
+
 		logger.success("Webhook created successfully", {
 			id: data.id,
 			expires: data.expirationTime,
+			secretPreview: `${data.macSecretBase64.substring(0, 10)}...`,
 		});
 
 		return data;
@@ -241,25 +252,6 @@ export class AirtableWebhookClient {
 				await new Promise((resolve) => setTimeout(resolve, waitTime));
 			}
 		}
-	}
-
-	/**
-	 * Convert webhook secret to base64 format for Airtable
-	 * Supports hex (from openssl rand -hex) and plain strings
-	 */
-	private encodeSecretToBase64(secret: string | undefined): string {
-		if (!secret) {
-			throw new Error("WEBHOOK_SECRET not configured");
-		}
-
-		// If secret looks like hex (only 0-9a-f), convert from hex to buffer first
-		if (/^[0-9a-f]+$/i.test(secret)) {
-			const buffer = Buffer.from(secret, "hex");
-			return buffer.toString("base64");
-		}
-
-		// Otherwise treat as plain string
-		return Buffer.from(secret, "utf-8").toString("base64");
 	}
 
 	/**

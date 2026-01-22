@@ -108,6 +108,13 @@ class SQLiteService {
 	}
 
 	/**
+	 * Check if database is connected
+	 */
+	isConnected(): boolean {
+		return this.activeDb !== null;
+	}
+
+	/**
 	 * Configure pragmas to optimize performance
 	 */
 	private setupPragmas(db: Database): void {
@@ -209,6 +216,18 @@ class SQLiteService {
 		db.run(`
       CREATE INDEX IF NOT EXISTS idx_processed_webhooks_expires 
       ON processed_webhooks(expires_at)
+    `);
+
+		// Table for webhook configuration (stores Airtable's macSecretBase64)
+		db.run(`
+      CREATE TABLE IF NOT EXISTS webhook_config (
+        id TEXT PRIMARY KEY DEFAULT 'default',
+        webhook_id TEXT NOT NULL,
+        mac_secret_base64 TEXT NOT NULL,
+        notification_url TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
     `);
 
 		// Table for metadata mappings (table ID to names)
@@ -858,17 +877,63 @@ class SQLiteService {
 
 		const stmt = this.activeDb.prepare(`
       DELETE FROM processed_webhooks 
-      WHERE expires_at < datetime('now')
+      WHERE expires_at <= datetime('now')
     `);
 
 		const result = stmt.run();
-		const deleted = result.changes || 0;
+		return result.changes;
+	}
 
-		if (deleted > 0) {
-			logger.info(`Cleaned up ${deleted} expired webhooks`);
-		}
+	/**
+	 * Stocker la configuration du webhook Airtable
+	 */
+	async storeWebhookConfig(
+		webhookId: string,
+		macSecretBase64: string,
+		notificationUrl: string,
+	): Promise<void> {
+		if (!this.activeDb) throw new Error("Database not connected");
 
-		return deleted;
+		const stmt = this.activeDb.prepare(`
+      INSERT OR REPLACE INTO webhook_config 
+      (id, webhook_id, mac_secret_base64, notification_url, updated_at)
+      VALUES ('default', ?, ?, ?, datetime('now'))
+    `);
+
+		stmt.run(webhookId, macSecretBase64, notificationUrl);
+	}
+
+	/**
+	 * Récupérer la configuration du webhook Airtable
+	 */
+	async getWebhookConfig(): Promise<{
+		webhookId: string;
+		macSecretBase64: string;
+		notificationUrl: string;
+	} | null> {
+		if (!this.activeDb) throw new Error("Database not connected");
+
+		const stmt = this.activeDb.prepare(`
+      SELECT webhook_id, mac_secret_base64, notification_url 
+      FROM webhook_config 
+      WHERE id = 'default'
+    `);
+
+		const result = stmt.get() as
+			| {
+					webhook_id: string;
+					mac_secret_base64: string;
+					notification_url: string;
+			  }
+			| undefined;
+
+		if (!result) return null;
+
+		return {
+			webhookId: result.webhook_id,
+			macSecretBase64: result.mac_secret_base64,
+			notificationUrl: result.notification_url,
+		};
 	}
 
 	// ========================================

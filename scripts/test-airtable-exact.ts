@@ -1,11 +1,10 @@
 #!/usr/bin/env bun
 /**
  * Test webhook en simulant EXACTEMENT le comportement d'Airtable
- * Utilise le même algorithme que la doc Airtable
+ * Utilise le secret stocké dans la base de données
  */
 
-import { createHmac } from "node:crypto";
-import { config } from "../src/config";
+import { calculateWebhookHmac } from "../src/lib/airtable/webhook-hmac";
 
 const targetUrl = process.argv[2] || "http://localhost:3000";
 const webhookEndpoint = `${targetUrl}/webhooks/airtable/refresh`;
@@ -13,36 +12,38 @@ const webhookEndpoint = `${targetUrl}/webhooks/airtable/refresh`;
 console.log("🧪 Testing webhook - Airtable simulation\n");
 console.log(`Target: ${webhookEndpoint}\n`);
 
-// Convertir le secret hex en base64 (comme on fait lors de la création)
-let macSecretBase64: string;
-if (/^[0-9a-f]+$/i.test(config.webhookSecret)) {
-	const buffer = Buffer.from(config.webhookSecret, "hex");
-	macSecretBase64 = buffer.toString("base64");
-} else {
-	macSecretBase64 = Buffer.from(config.webhookSecret, "utf-8").toString(
-		"base64",
+// Récupérer le secret stocké dans la base de données
+const { sqliteService } = await import("../src/lib/sqlite");
+await sqliteService.connect();
+
+const webhookConfig = await sqliteService.getWebhookConfig();
+
+if (!webhookConfig) {
+	console.error(
+		"❌ No webhook configuration found in database. Please create a webhook first using:\n",
 	);
+	console.error("   bun scripts/recreate-webhook-with-current-secret.ts\n");
+	process.exit(1);
 }
 
-console.log("Secret (base64):", macSecretBase64);
-console.log("");
+console.log("📋 Webhook config loaded:");
+console.log(`   Webhook ID: ${webhookConfig.webhookId}`);
+console.log(
+	`   Secret: ${webhookConfig.macSecretBase64.substring(0, 10)}...\n`,
+);
 
 // Créer un payload de test (identique au vrai webhook Airtable)
 const webhookNotificationDeliveryPayload = {
 	base: { id: "appTl71LROmieOxgM" },
-	webhook: { id: "achsZC0KQajN2BcKc" },
+	webhook: { id: webhookConfig.webhookId },
 	timestamp: new Date().toISOString(),
 };
 
-// Calculer la signature EXACTEMENT comme Airtable (selon leur doc)
-const macSecretDecoded = Buffer.from(macSecretBase64, "base64");
-const body = Buffer.from(
-	JSON.stringify(webhookNotificationDeliveryPayload),
-	"utf8",
-);
-const hmac = createHmac("sha256", macSecretDecoded);
-hmac.update(body.toString(), "ascii");
-const expectedContentHmac = `hmac-sha256=${hmac.digest("hex")}`;
+const body = JSON.stringify(webhookNotificationDeliveryPayload);
+
+// Calculer la signature EXACTEMENT comme Airtable avec le module partagé
+const hash = calculateWebhookHmac(webhookConfig.macSecretBase64, body);
+const expectedContentHmac = `hmac-sha256=${hash}`;
 
 console.log("📝 Payload:");
 console.log(JSON.stringify(webhookNotificationDeliveryPayload, null, 2));
@@ -59,7 +60,7 @@ try {
 			"Content-Type": "application/json",
 			"X-Airtable-Content-MAC": expectedContentHmac,
 		},
-		body: JSON.stringify(webhookNotificationDeliveryPayload),
+		body,
 	});
 
 	const responseText = await response.text();

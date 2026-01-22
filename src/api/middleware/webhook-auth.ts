@@ -4,7 +4,7 @@
  */
 
 import type { Context, Next } from "hono";
-import { config } from "../../config";
+import { calculateWebhookHmac } from "../../lib/airtable/webhook-hmac";
 import { loggers } from "../../lib/logger";
 
 const logger = loggers.webhook;
@@ -28,20 +28,66 @@ export async function validateWebhookSignature(
 			url: c.req.url,
 		});
 
-		// 1. Vérifier que le secret est configuré
-		if (!config.webhookSecret) {
-			logger.error("WEBHOOK_SECRET not configured");
-			return c.json({ error: "Webhook authentication not configured" }, 500);
+		// 1. Récupérer la configuration du webhook stockée
+		const { sqliteService } = await import("../../lib/sqlite");
+		const webhookConfig = await sqliteService.getWebhookConfig();
+
+		if (!webhookConfig) {
+			logger.error(
+				"No webhook configuration found. Please create a webhook first.",
+			);
+			return c.json(
+				{
+					error:
+						"Webhook not configured. Please create a webhook using the setup script.",
+				},
+				500,
+			);
 		}
 
-		logger.info("WEBHOOK_SECRET is configured", {
-			secretLength: config.webhookSecret.length,
+		logger.info("Webhook config loaded", {
+			webhookId: webhookConfig.webhookId,
+			secretPreview: `${webhookConfig.macSecretBase64.substring(0, 10)}...`,
 		});
 
-		// 2. Récupérer signature du header
+		// 2. Lire le body d'abord pour détecter les requêtes de ping
+		const body = await c.req.text();
+
+		logger.info("Body received", {
+			bodyLength: body.length,
+			bodyPreview: body.substring(0, 100),
+		});
+
+		// 2a. Détecter les requêtes de ping/verification d'Airtable
+		// Lors de l'activation des notifications, Airtable envoie une requête de test
+		// sans signature pour vérifier que l'endpoint est accessible
+		let payload: Record<string, unknown>;
+		try {
+			payload = JSON.parse(body || "{}");
+		} catch {
+			logger.warn("Invalid JSON body");
+			return c.json({ error: "Invalid JSON" }, 400);
+		}
+
+		// Si le payload est vide ou contient seulement un ping, c'est une vérification
+		const isEmptyOrPing =
+			!payload ||
+			Object.keys(payload).length === 0 ||
+			("ping" in payload && Object.keys(payload).length === 1);
+
+		if (isEmptyOrPing) {
+			logger.info(
+				"Detected Airtable verification ping - responding with 200 OK",
+			);
+			c.set("webhookBody", payload);
+			await next();
+			return;
+		}
+
+		// 3. Pour les vraies notifications, récupérer et valider la signature
 		const signature = c.req.header("X-Airtable-Content-MAC");
 		if (!signature) {
-			logger.error("Missing signature header");
+			logger.error("Missing signature header for non-ping request");
 			return c.json({ error: "Missing signature header" }, 401);
 		}
 
@@ -63,56 +109,25 @@ export async function validateWebhookSignature(
 			signaturePreview: `${signature.substring(0, 30)}...`,
 		});
 
-		// 3. Lire le body (nécessaire pour HMAC)
-		const body = await c.req.text();
-
-		logger.info("Body received", {
-			bodyLength: body.length,
-			bodyPreview: body.substring(0, 100),
-		});
-
-		// 4. Calculer HMAC attendu avec Bun's crypto API
-		// Airtable utilise le secret en base64, donc nous devons :
-		// 1. Convertir notre secret hex en base64 (comme on fait lors de la création)
-		// 2. Décoder depuis base64 pour obtenir le buffer binaire
-		// 3. Utiliser ce buffer pour calculer le HMAC
-
-		// Convertir le secret hex en base64 (même logique que webhook-client)
-		let secretBase64: string;
-		if (/^[0-9a-f]+$/i.test(config.webhookSecret)) {
-			// Secret en format hex
-			const buffer = Buffer.from(config.webhookSecret, "hex");
-			secretBase64 = buffer.toString("base64");
-		} else {
-			// Secret en format string
-			secretBase64 = Buffer.from(config.webhookSecret, "utf-8").toString(
-				"base64",
-			);
-		}
-
-		// Décoder le secret depuis base64 pour obtenir le buffer binaire
-		const secretDecoded = new Uint8Array(Buffer.from(secretBase64, "base64"));
-
-		// Calculer HMAC avec le secret décodé
-		const bodyData = new Uint8Array(Buffer.from(body, "utf8"));
-
-		const hmac = new Bun.CryptoHasher("sha256", secretDecoded)
-			.update(bodyData)
-			.digest("hex");
-
-		// Extraire juste le hash de la signature (enlever le préfixe)
+		// 4. Calculer le HMAC attendu avec le secret stocké
+		// Extraire le hash de la signature (enlever le préfixe)
 		const providedHash = signature.replace(/^(sha256=|hmac-sha256=)/, "");
 
+		// Le secret est déjà en base64 dans la DB (comme retourné par Airtable)
+		const computedHash = calculateWebhookHmac(
+			webhookConfig.macSecretBase64,
+			body,
+		);
+
 		logger.info("Signature comparison", {
-			providedSignature: signature,
 			providedHash,
-			computedHash: hmac,
-			match: providedHash === hmac,
+			computedHash,
+			match: providedHash === computedHash,
 		});
 
 		// 5. Timing-safe comparison
 		const providedBuffer = new Uint8Array(Buffer.from(providedHash, "hex"));
-		const computedBuffer = new Uint8Array(Buffer.from(hmac, "hex"));
+		const computedBuffer = new Uint8Array(Buffer.from(computedHash, "hex"));
 
 		if (providedBuffer.length !== computedBuffer.length) {
 			logger.warn("Invalid webhook signature (length mismatch)", {
@@ -122,37 +137,15 @@ export async function validateWebhookSignature(
 			return c.json({ error: "Invalid signature" }, 401);
 		}
 
-		// Use crypto.timingSafeEqual with Uint8Array
-		const providedView = new DataView(providedBuffer.buffer);
-		const computedView = new DataView(computedBuffer.buffer);
-
-		let isEqual = true;
-		for (let i = 0; i < providedBuffer.length; i++) {
-			if (providedView.getUint8(i) !== computedView.getUint8(i)) {
-				isEqual = false;
-			}
-		}
-
-		if (!isEqual) {
-			logger.warn("Invalid webhook signature (mismatch)", {
-				providedHash,
-				computedHash: hmac,
-			});
-			return c.json({ error: "Invalid signature" }, 401);
-		}
-
 		if (!crypto.timingSafeEqual(providedBuffer, computedBuffer)) {
-			logger.warn("Invalid webhook signature (crypto.timingSafeEqual failed)", {
-				providedHash,
-				computedHash: hmac,
-			});
+			logger.warn("Invalid webhook signature (mismatch)");
 			return c.json({ error: "Invalid signature" }, 401);
 		}
 
 		// 6. Valider timestamp (protection replay attack)
-		const payload = JSON.parse(body);
 		if (payload.timestamp) {
-			const webhookTime = new Date(payload.timestamp).getTime();
+			const { config } = await import("../../config");
+			const webhookTime = new Date(payload.timestamp as string).getTime();
 			const now = Date.now();
 			const diff = Math.abs(now - webhookTime);
 
@@ -193,6 +186,7 @@ export async function webhookRateLimit(
 	c: Context,
 	next: Next,
 ): Promise<Response | undefined> {
+	const { config } = await import("../../config");
 	const key = "airtable-webhook"; // Une seule clé pour toutes les webhooks Airtable
 	const now = Date.now();
 	const lastTime = lastWebhookTime.get(key) || 0;
