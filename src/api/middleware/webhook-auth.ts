@@ -72,12 +72,31 @@ export async function validateWebhookSignature(
 		});
 
 		// 4. Calculer HMAC attendu avec Bun's crypto API
-		const encoder = new TextEncoder();
-		const keyData = encoder.encode(config.webhookSecret);
-		const bodyData = encoder.encode(body);
+		// Airtable utilise le secret en base64, donc nous devons :
+		// 1. Convertir notre secret hex en base64 (comme on fait lors de la création)
+		// 2. Décoder depuis base64 pour obtenir le buffer binaire
+		// 3. Utiliser ce buffer pour calculer le HMAC
 
-		// Utiliser l'API crypto standard (compatible Bun)
-		const hmac = new Bun.CryptoHasher("sha256", keyData)
+		// Convertir le secret hex en base64 (même logique que webhook-client)
+		let secretBase64: string;
+		if (/^[0-9a-f]+$/i.test(config.webhookSecret)) {
+			// Secret en format hex
+			const buffer = Buffer.from(config.webhookSecret, "hex");
+			secretBase64 = buffer.toString("base64");
+		} else {
+			// Secret en format string
+			secretBase64 = Buffer.from(config.webhookSecret, "utf-8").toString(
+				"base64",
+			);
+		}
+
+		// Décoder le secret depuis base64 pour obtenir le buffer binaire
+		const secretDecoded = new Uint8Array(Buffer.from(secretBase64, "base64"));
+
+		// Calculer HMAC avec le secret décodé
+		const bodyData = new Uint8Array(Buffer.from(body, "utf8"));
+
+		const hmac = new Bun.CryptoHasher("sha256", secretDecoded)
 			.update(bodyData)
 			.digest("hex");
 
