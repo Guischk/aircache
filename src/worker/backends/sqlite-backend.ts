@@ -31,6 +31,141 @@ export class SQLiteBackend {
 	}
 
 	/**
+	 * Refresh incrémental basé sur les changements du webhook
+	 */
+	async incrementalRefresh(changedTablesById: {
+		[tableId: string]: {
+			createdRecordsById?: { [recordId: string]: null };
+			changedRecordsById?: { [recordId: string]: null };
+			destroyedRecordIds?: string[];
+		};
+	}): Promise<{
+		tables: number;
+		recordsCreated: number;
+		recordsUpdated: number;
+		recordsDeleted: number;
+		duration: number;
+	}> {
+		const startTime = performance.now();
+		let recordsCreated = 0;
+		let recordsUpdated = 0;
+		let recordsDeleted = 0;
+
+		console.log("🔄 [SQLite] Starting incremental refresh...");
+
+		try {
+			await sqliteService.connect();
+
+			// Itérer sur chaque table modifiée
+			for (const [tableId, changes] of Object.entries(changedTablesById)) {
+				try {
+					// 1. Résoudre le nom de la table depuis son ID
+					const tableName = await this.resolveTableNameFromId(tableId);
+					if (!tableName) {
+						console.warn(`⚠️ Unknown table ID: ${tableId}, skipping`);
+						continue;
+					}
+
+					console.log(`🔄 [SQLite] Processing table: ${tableName}`);
+					const normalizedTableName = normalizeKey(tableName);
+
+					// 2. Collecter les IDs à fetch (créés + modifiés)
+					const recordIdsToFetch = [
+						...Object.keys(changes.createdRecordsById || {}),
+						...Object.keys(changes.changedRecordsById || {}),
+					];
+
+					// 3. Fetch records depuis Airtable (batch)
+					if (recordIdsToFetch.length > 0) {
+						console.log(`   📥 Fetching ${recordIdsToFetch.length} records...`);
+
+						// Airtable API: select() avec filterByFormula
+						const formula = `OR(${recordIdsToFetch.map((id) => `RECORD_ID()="${id}"`).join(",")})`;
+						const records = await base(tableName)
+							.select({ filterByFormula: formula })
+							.all();
+
+						// Sauvegarder dans activeDb (pas inactive!)
+						await sqliteService.setRecordsBatch(
+							normalizedTableName,
+							records,
+							false, // useInactive = false → met à jour activeDb
+						);
+
+						recordsCreated += Object.keys(
+							changes.createdRecordsById || {},
+						).length;
+						recordsUpdated += Object.keys(
+							changes.changedRecordsById || {},
+						).length;
+						console.log(`   ✅ ${records.length} records updated in cache`);
+					}
+
+					// 4. Supprimer les records détruits
+					const destroyedIds = changes.destroyedRecordIds || [];
+					if (destroyedIds.length > 0) {
+						console.log(`   🗑️  Deleting ${destroyedIds.length} records...`);
+
+						for (const recordId of destroyedIds) {
+							await sqliteService.deleteRecord(
+								normalizedTableName,
+								recordId,
+								false,
+							);
+							recordsDeleted++;
+						}
+
+						console.log(`   ✅ ${destroyedIds.length} records deleted`);
+					}
+				} catch (error) {
+					console.error(`❌ Error processing table ${tableId}:`, error);
+				}
+			}
+
+			const duration = performance.now() - startTime;
+			console.log(
+				`✅ [SQLite] Incremental refresh completed in ${(duration / 1000).toFixed(2)}s`,
+			);
+			console.log(
+				`   📊 Created: ${recordsCreated}, Updated: ${recordsUpdated}, Deleted: ${recordsDeleted}`,
+			);
+
+			return {
+				tables: Object.keys(changedTablesById).length,
+				recordsCreated,
+				recordsUpdated,
+				recordsDeleted,
+				duration,
+			};
+		} catch (error) {
+			console.error("❌ [SQLite] Error during incremental refresh:", error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Résout le nom de table depuis son ID Airtable (tblXXX)
+	 * TODO: Sera complété avec la Phase 2 (Mapping table)
+	 */
+	private async resolveTableNameFromId(
+		tableId: string,
+	): Promise<string | null> {
+		try {
+			// Pour l'instant, retourne null si pas trouvé
+			// L'implémentation complète viendra avec la Phase 2 (Mapping)
+			console.warn(`⚠️ Table ID resolution not yet implemented: ${tableId}`);
+			console.warn("   💡 Will be implemented in Phase 2 (Mapping table)");
+			console.warn(
+				"   📌 Using fallback: full refresh will be triggered instead",
+			);
+			return null;
+		} catch (error) {
+			console.error(`❌ Error resolving table ID ${tableId}:`, error);
+			return null;
+		}
+	}
+
+	/**
 	 * Process attachments in parallel with limited concurrency
 	 */
 	private async processAttachmentsWithPool<T>(

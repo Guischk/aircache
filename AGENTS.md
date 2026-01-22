@@ -4,31 +4,33 @@ Guidelines for AI coding agents working in the Aircache codebase.
 
 ## Build, Lint, and Test Commands
 
-| Command | Description |
-|---------|-------------|
-| `bun index.ts` | Start the service |
-| `bun --hot index.ts` | Start with hot reload (development) |
-| `bun install` | Install dependencies |
-| `bun test` | Run all tests |
-| `bun test tests/api.test.ts` | Run a specific test file |
-| `bun test tests/api.test.ts -t "should return healthy"` | Run a single test by name |
-| `bun test --watch` | Run tests in watch mode |
-| `bun run lint` | Lint code with Biome (auto-fix) |
-| `bun run format` | Format code with Biome |
-| `bun run check` | Full Biome check (lint + format with auto-fix) |
-| `bun run validate` | Run check + test + benchmark |
-| `bun run benchmark` | Run performance benchmarks |
-| `bun run types` | Generate Airtable types |
+| Command                                                 | Description                                    |
+| ------------------------------------------------------- | ---------------------------------------------- |
+| `bun index.ts`                                          | Start the service                              |
+| `bun --hot index.ts`                                    | Start with hot reload (development)            |
+| `bun install`                                           | Install dependencies                           |
+| `bun test`                                              | Run all tests                                  |
+| `bun test tests/api.test.ts`                            | Run a specific test file                       |
+| `bun test tests/api.test.ts -t "should return healthy"` | Run a single test by name                      |
+| `bun test --watch`                                      | Run tests in watch mode                        |
+| `bun run lint`                                          | Lint code with Biome (auto-fix)                |
+| `bun run format`                                        | Format code with Biome                         |
+| `bun run check`                                         | Full Biome check (lint + format with auto-fix) |
+| `bun run validate`                                      | Run check + test + benchmark                   |
+| `bun run benchmark`                                     | Run performance benchmarks                     |
+| `bun run types`                                         | Generate Airtable types                        |
 
 ## Runtime Environment
 
 **Use Bun, not Node.js:**
+
 - `bun <file>` instead of `node <file>` or `ts-node <file>`
 - `bun test` instead of `jest` or `vitest`
 - `bun install` instead of `npm/yarn/pnpm install`
 - Bun automatically loads `.env` - do NOT use dotenv
 
 **Bun-specific APIs (prefer these):**
+
 - `Bun.serve()` with Hono - not Express
 - `bun:sqlite` - not `better-sqlite3`
 - `Bun.file()` - not `node:fs` readFile/writeFile
@@ -54,13 +56,13 @@ Guidelines for AI coding agents working in the Aircache codebase.
 
 ### Naming Conventions
 
-| Type | Convention | Example |
-|------|------------|---------|
-| Files | lowercase-hyphenated | `sqlite-backend.ts`, `test-config.ts` |
-| Classes | PascalCase | `SQLiteService`, `SQLiteBackend` |
-| Functions | camelCase | `handleTables`, `normalizeKey` |
-| Interfaces/Types | PascalCase | `ApiResponse`, `RefreshStats` |
-| Constants | SCREAMING_SNAKE_CASE | `AIRTABLE_TABLE_NAMES` |
+| Type             | Convention           | Example                               |
+| ---------------- | -------------------- | ------------------------------------- |
+| Files            | lowercase-hyphenated | `sqlite-backend.ts`, `test-config.ts` |
+| Classes          | PascalCase           | `SQLiteService`, `SQLiteBackend`      |
+| Functions        | camelCase            | `handleTables`, `normalizeKey`        |
+| Interfaces/Types | PascalCase           | `ApiResponse`, `RefreshStats`         |
+| Constants        | SCREAMING_SNAKE_CASE | `AIRTABLE_TABLE_NAMES`                |
 
 ### Import Patterns
 
@@ -81,18 +83,18 @@ import { handleTables } from "../handlers/tables";
 
 ```typescript
 try {
-	// operation
+  // operation
 } catch (error) {
-	return new Response(
-		JSON.stringify({
-			error: error instanceof Error ? error.message : "Unknown error",
-			backend: "sqlite",
-		}),
-		{
-			status: 500,
-			headers: { "Content-Type": "application/json" },
-		},
-	);
+  return new Response(
+    JSON.stringify({
+      error: error instanceof Error ? error.message : "Unknown error",
+      backend: "sqlite",
+    }),
+    {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
 }
 ```
 
@@ -100,16 +102,16 @@ try {
 
 ```typescript
 if (!record) {
-	return new Response(
-		JSON.stringify({
-			error: "Record not found",
-			backend: "sqlite",
-		}),
-		{
-			status: 404,
-			headers: { "Content-Type": "application/json" },
-		},
-	);
+  return new Response(
+    JSON.stringify({
+      error: "Record not found",
+      backend: "sqlite",
+    }),
+    {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
 }
 ```
 
@@ -118,8 +120,8 @@ if (!record) {
 ```typescript
 const results = await Promise.allSettled(items.map(processFn));
 for (const result of results) {
-	if (result.status === "fulfilled") processed++;
-	else console.error("Processing failed:", result.reason);
+  if (result.status === "fulfilled") processed++;
+  else console.error("Processing failed:", result.reason);
 }
 ```
 
@@ -131,17 +133,17 @@ for (const result of results) {
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 describe("Feature Name", () => {
-	beforeAll(async () => {
-		// Setup (e.g., start server)
-	});
+  beforeAll(async () => {
+    // Setup (e.g., start server)
+  });
 
-	afterAll(() => {
-		// Cleanup (e.g., stop server)
-	});
+  afterAll(() => {
+    // Cleanup (e.g., stop server)
+  });
 
-	test("should [behavior] when [condition]", async () => {
-		expect(result).toBe(expected);
-	});
+  test("should [behavior] when [condition]", async () => {
+    expect(result).toBe(expected);
+  });
 });
 ```
 

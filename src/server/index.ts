@@ -57,6 +57,15 @@ async function startSQLiteServer(config: ServerConfig): Promise<void> {
 	// Start the API server
 	await startSQLiteApiServer(config.port, worker);
 
+	// Auto-setup webhooks if configured
+	try {
+		const { autoSetupWebhooks } = await import("../lib/webhooks/auto-setup");
+		await autoSetupWebhooks();
+	} catch (error) {
+		console.error("⚠️  Webhook auto-setup error:", error);
+		// Continue startup even if webhook setup fails
+	}
+
 	// Initial refresh on startup
 	console.log("🔄 Starting initial refresh...");
 	worker.postMessage({ type: "refresh:start" });

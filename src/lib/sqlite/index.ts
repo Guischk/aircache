@@ -183,6 +183,22 @@ class SQLiteService {
       )
     `);
 
+		// Table for webhook tracking (idempotency)
+		db.run(`
+      CREATE TABLE IF NOT EXISTS processed_webhooks (
+        webhook_id TEXT PRIMARY KEY,
+        processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        refresh_type TEXT NOT NULL,
+        stats TEXT,
+        expires_at DATETIME NOT NULL
+      )
+    `);
+
+		db.run(`
+      CREATE INDEX IF NOT EXISTS idx_processed_webhooks_expires 
+      ON processed_webhooks(expires_at)
+    `);
+
 		console.log("✅ Data schema initialized");
 	}
 
@@ -721,6 +737,103 @@ class SQLiteService {
 	async transactionOn<T>(db: Database, fn: () => T): Promise<T> {
 		const txn = db.transaction(fn);
 		return txn();
+	}
+
+	/**
+	 * Supprimer un record (pour webhook incremental)
+	 */
+	async deleteRecord(
+		tableNorm: string,
+		recordId: string,
+		useInactive = false,
+	): Promise<void> {
+		const db = useInactive ? this.inactiveDb : this.activeDb;
+		if (!db) throw new Error("Database not connected");
+
+		const id = `${tableNorm}:${recordId}`;
+
+		await this.transactionOn(db, async () => {
+			if (!db) return;
+
+			// Supprimer le record principal
+			const recordStmt = db.prepare(`
+        DELETE FROM airtable_records WHERE id = ?
+      `);
+			recordStmt.run(id);
+
+			// Supprimer les attachments associés
+			const attachmentStmt = db.prepare(`
+        DELETE FROM attachments WHERE table_name = ? AND record_id = ?
+      `);
+			attachmentStmt.run(tableNorm, recordId);
+		});
+
+		console.log(`🗑️ Record deleted: ${id}`);
+	}
+
+	/**
+	 * Vérifier si un webhook a déjà été traité
+	 */
+	async isWebhookProcessed(webhookId: string): Promise<boolean> {
+		if (!this.activeDb) throw new Error("Database not connected");
+
+		const stmt = this.activeDb.prepare(`
+      SELECT 1 FROM processed_webhooks 
+      WHERE webhook_id = ? AND expires_at > datetime('now')
+    `);
+
+		const result = stmt.get(webhookId);
+		return !!result;
+	}
+
+	/**
+	 * Marquer un webhook comme traité
+	 */
+	async markWebhookProcessed(
+		webhookId: string,
+		refreshType: "incremental" | "full",
+		stats: any,
+	): Promise<void> {
+		if (!this.activeDb) throw new Error("Database not connected");
+
+		const { config } = await import("../../config");
+		const expiresAt = new Date(
+			Date.now() + config.webhookIdempotencyTTL * 1000,
+		);
+
+		const stmt = this.activeDb.prepare(`
+      INSERT OR REPLACE INTO processed_webhooks 
+      (webhook_id, refresh_type, stats, expires_at)
+      VALUES (?, ?, ?, ?)
+    `);
+
+		stmt.run(
+			webhookId,
+			refreshType,
+			JSON.stringify(stats),
+			expiresAt.toISOString(),
+		);
+	}
+
+	/**
+	 * Cleanup des webhooks expirés (à appeler périodiquement)
+	 */
+	async cleanupExpiredWebhooks(): Promise<number> {
+		if (!this.activeDb) throw new Error("Database not connected");
+
+		const stmt = this.activeDb.prepare(`
+      DELETE FROM processed_webhooks 
+      WHERE expires_at < datetime('now')
+    `);
+
+		const result = stmt.run();
+		const deleted = result.changes || 0;
+
+		if (deleted > 0) {
+			console.log(`🧹 Cleaned up ${deleted} expired webhooks`);
+		}
+
+		return deleted;
 	}
 
 	/**

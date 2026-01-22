@@ -13,6 +13,7 @@ import { setupAttachmentRoutes } from "./routes/attachments";
 import { setupHealthRoutes } from "./routes/health";
 import { setupStatsRoutes } from "./routes/stats";
 import { setupTableRoutes } from "./routes/tables";
+import { setupWebhookRoutes } from "./routes/webhooks";
 
 // Types for context
 interface AppBindings {
@@ -57,6 +58,7 @@ export function createApp(worker?: Worker): Hono<AppContext> {
 
 	// 🛣️ Setup route modules
 	setupHealthRoutes(app);
+	setupWebhookRoutes(app); // Webhook routes (no bearer auth, has own HMAC validation)
 	setupTableRoutes(app);
 	setupStatsRoutes(app);
 	setupAttachmentRoutes(app);
@@ -68,6 +70,7 @@ export function createApp(worker?: Worker): Hono<AppContext> {
 				error: "Route not found",
 				availableRoutes: [
 					"GET /health",
+					"POST /webhooks/airtable/refresh",
 					"GET /api/tables",
 					"GET /api/tables/:tableName",
 					"GET /api/tables/:tableName/:recordId",

@@ -20,6 +20,14 @@ export interface Config {
 	// Storage settings
 	storagePath: string;
 	enableAttachmentDownload: boolean;
+
+	// Webhook settings
+	webhookSecret: string;
+	webhookRateLimit: number;
+	webhookTimestampWindow: number;
+	webhookIdempotencyTTL: number;
+	webhookAutoSetup: boolean;
+	webhookPublicUrl: string;
 }
 
 export function loadConfig(): Config {
@@ -46,6 +54,18 @@ export function loadConfig(): Config {
 		storagePath: process.env.STORAGE_PATH || "./data/attachments",
 		enableAttachmentDownload:
 			process.env.ENABLE_ATTACHMENT_DOWNLOAD !== "false", // Default to true
+
+		// Webhook settings
+		webhookSecret: process.env.WEBHOOK_SECRET || "",
+		webhookRateLimit: Number.parseInt(process.env.WEBHOOK_RATE_LIMIT || "30"), // seconds
+		webhookTimestampWindow: Number.parseInt(
+			process.env.WEBHOOK_TIMESTAMP_WINDOW || "300",
+		), // 5 minutes
+		webhookIdempotencyTTL: Number.parseInt(
+			process.env.WEBHOOK_IDEMPOTENCY_TTL || "86400",
+		), // 24 hours
+		webhookAutoSetup: process.env.WEBHOOK_AUTO_SETUP !== "false", // Default to true
+		webhookPublicUrl: process.env.WEBHOOK_PUBLIC_URL || "", // e.g., https://aircache.example.com
 	};
 }
 
