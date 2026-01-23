@@ -440,8 +440,8 @@ class SQLiteService {
 				const id = `${tableNorm}:${record.id}`;
 				const dataStr = JSON.stringify(record.fields);
 
-				// Log each record being inserted
-				logger.info("Inserting record into SQLite", {
+				// Log each record being inserted (debug level for verbose output)
+				logger.debug("Inserting record into SQLite", {
 					id,
 					tableNorm,
 					recordId: record.id,
