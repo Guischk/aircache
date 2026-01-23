@@ -63,8 +63,14 @@ class SQLiteService {
 
 	/**
 	 * Initialize databases (v1, v2 and metadata)
+	 * Idempotent: if already connected, reuses existing connections
 	 */
 	async connect(): Promise<void> {
+		// If already connected, reuse existing connections
+		if (this.activeDb && this.inactiveDb && this.metadataDb) {
+			return;
+		}
+
 		try {
 			// Create data folder if it doesn't exist
 			const dbDir = this.v1Path.split("/").slice(0, -1).join("/");
