@@ -3,37 +3,50 @@
  * SQLite-only caching service configuration
  */
 
+import { type SyncMode, config } from "../config";
 import { loggers } from "../lib/logger";
 
 const logger = loggers.server;
 
 export interface ServerConfig {
 	port: number;
+	syncMode: SyncMode;
 	refreshInterval: number;
+	failsafeRefreshInterval: number;
 }
 
 export function getServerConfig(): ServerConfig {
 	return {
-		port: Number.parseInt(process.env.PORT || "3000"),
-		refreshInterval: Number.parseInt(process.env.REFRESH_INTERVAL || "86400"), // Default to 24 hours for SQLite
+		port: config.port,
+		syncMode: config.syncMode,
+		refreshInterval: config.refreshInterval,
+		failsafeRefreshInterval: config.failsafeRefreshInterval,
 	};
 }
 
 export async function startServer(
-	config?: Partial<ServerConfig>,
+	overrideConfig?: Partial<ServerConfig>,
 ): Promise<void> {
-	const fullConfig = { ...getServerConfig(), ...config };
+	const fullConfig = { ...getServerConfig(), ...overrideConfig };
 
 	logger.start("Starting Aircache service (SQLite)");
 	logger.info("Configuration", {
 		port: fullConfig.port,
-		refreshInterval: `${fullConfig.refreshInterval}s`,
+		syncMode: fullConfig.syncMode,
+		refreshInterval:
+			fullConfig.syncMode === "polling"
+				? `${fullConfig.refreshInterval}s`
+				: "N/A",
+		failsafeRefreshInterval:
+			fullConfig.syncMode === "webhook"
+				? `${fullConfig.failsafeRefreshInterval}s`
+				: "N/A",
 	});
 
 	await startSQLiteServer(fullConfig);
 }
 
-async function startSQLiteServer(config: ServerConfig): Promise<void> {
+async function startSQLiteServer(serverConfig: ServerConfig): Promise<void> {
 	const { startSQLiteApiServer } = await import("../api/index");
 
 	logger.start("Starting SQLite worker");
@@ -75,7 +88,65 @@ async function startSQLiteServer(config: ServerConfig): Promise<void> {
 	};
 
 	// Start the API server
-	await startSQLiteApiServer(config.port, worker);
+	await startSQLiteApiServer(serverConfig.port, worker);
+
+	// Handle sync mode specific logic
+	switch (serverConfig.syncMode) {
+		case "polling":
+			await startPollingMode(worker, serverConfig);
+			break;
+		case "webhook":
+			await startWebhookMode(worker, serverConfig);
+			break;
+		case "manual":
+			await startManualMode();
+			break;
+	}
+
+	logger.success("SQLite service fully started");
+	logger.info("Storage", {
+		databases: "data/aircache-v1.sqlite, data/aircache-v2.sqlite",
+		attachments: process.env.STORAGE_PATH || "./data/attachments",
+	});
+
+	setupGracefulShutdown(worker);
+}
+
+/**
+ * Polling mode: Regular full refresh at configured interval
+ */
+async function startPollingMode(
+	worker: Worker,
+	serverConfig: ServerConfig,
+): Promise<void> {
+	logger.info("Sync mode: POLLING");
+
+	// Initial refresh on startup
+	logger.start("Starting initial refresh");
+	worker.postMessage({ type: "refresh:start" });
+
+	// Periodic refresh
+	setInterval(() => {
+		logger.info("Periodic refresh triggered");
+		worker.postMessage({ type: "refresh:start" });
+	}, serverConfig.refreshInterval * 1000);
+
+	const refreshMsg = formatDuration(serverConfig.refreshInterval);
+	logger.ready(`Refresh scheduled every ${refreshMsg}`);
+}
+
+/**
+ * Webhook mode: Real-time updates via Airtable webhooks + failsafe refresh
+ */
+async function startWebhookMode(
+	worker: Worker,
+	serverConfig: ServerConfig,
+): Promise<void> {
+	logger.info("Sync mode: WEBHOOK");
+
+	// Initial refresh on startup (always, to ensure data consistency)
+	logger.start("Starting initial refresh");
+	worker.postMessage({ type: "refresh:start" });
 
 	// Auto-setup webhooks if configured
 	try {
@@ -86,32 +157,41 @@ async function startSQLiteServer(config: ServerConfig): Promise<void> {
 		// Continue startup even if webhook setup fails
 	}
 
-	// Initial refresh on startup
-	logger.start("Starting initial refresh");
-	worker.postMessage({ type: "refresh:start" });
-
-	// Periodic refresh
+	// Failsafe refresh (safety net in case webhooks are missed)
 	setInterval(() => {
-		logger.info("Periodic refresh triggered");
+		logger.info("Failsafe refresh triggered");
 		worker.postMessage({ type: "refresh:start" });
-	}, config.refreshInterval * 1000);
+	}, serverConfig.failsafeRefreshInterval * 1000);
 
-	const hours = Math.floor(config.refreshInterval / 3600);
-	const minutes = Math.floor((config.refreshInterval % 3600) / 60);
-	let refreshMsg = "Refresh scheduled every ";
-	if (hours > 0) refreshMsg += `${hours} hour${hours > 1 ? "s" : ""}`;
-	if (hours > 0 && minutes > 0) refreshMsg += " ";
-	if (minutes > 0) refreshMsg += `${minutes} minute${minutes > 1 ? "s" : ""}`;
-	if (hours === 0 && minutes === 0)
-		refreshMsg += `${config.refreshInterval} seconds`;
-	logger.ready(refreshMsg);
-	logger.success("SQLite service fully started");
-	logger.info("Storage", {
-		databases: "data/aircache-v1.sqlite, data/aircache-v2.sqlite",
-		attachments: process.env.STORAGE_PATH || "./data/attachments",
-	});
+	const failsafeMsg = formatDuration(serverConfig.failsafeRefreshInterval);
+	logger.ready(`Failsafe refresh scheduled every ${failsafeMsg}`);
+	logger.ready("Real-time updates via webhooks enabled");
+}
 
-	setupGracefulShutdown(worker);
+/**
+ * Manual mode: No automatic refresh, only via API
+ */
+async function startManualMode(): Promise<void> {
+	logger.info("Sync mode: MANUAL");
+	logger.ready("No automatic refresh - use POST /api/refresh to trigger");
+}
+
+/**
+ * Format duration in human-readable format
+ */
+function formatDuration(seconds: number): string {
+	const hours = Math.floor(seconds / 3600);
+	const minutes = Math.floor((seconds % 3600) / 60);
+	const remainingSeconds = seconds % 60;
+
+	const parts: string[] = [];
+	if (hours > 0) parts.push(`${hours} hour${hours > 1 ? "s" : ""}`);
+	if (minutes > 0) parts.push(`${minutes} minute${minutes > 1 ? "s" : ""}`);
+	if (remainingSeconds > 0 && hours === 0 && minutes === 0) {
+		parts.push(`${remainingSeconds} seconds`);
+	}
+
+	return parts.join(" ") || `${seconds} seconds`;
 }
 
 function setupGracefulShutdown(worker: Worker): void {

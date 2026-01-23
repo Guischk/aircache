@@ -35,6 +35,7 @@ interface Attachment {
 class SQLiteService {
 	private activeDb: Database | null = null;
 	private inactiveDb: Database | null = null;
+	private metadataDb: Database | null = null;
 	private v1Path: string;
 	private v2Path: string;
 	private metadataPath: string;
@@ -71,14 +72,15 @@ class SQLiteService {
 				await Bun.write(join(dbDir, ".gitkeep"), "");
 			}
 
-			// Initialize metadata database
-			const metadataDb = new Database(this.metadataPath);
-			this.setupPragmas(metadataDb);
-			await this.initializeMetadataSchema(metadataDb);
+			// Initialize metadata database (keep it open)
+			this.metadataDb = new Database(this.metadataPath);
+			this.setupPragmas(this.metadataDb);
+			await this.initializeMetadataSchema(this.metadataDb);
 
 			// Retrieve active version from metadata
-			this.currentActive = await this.loadActiveVersionFromMetadata(metadataDb);
-			metadataDb.close();
+			this.currentActive = await this.loadActiveVersionFromMetadata(
+				this.metadataDb,
+			);
 
 			// Initialize both databases
 			const v1Db = new Database(this.v1Path);
@@ -98,6 +100,9 @@ class SQLiteService {
 				this.activeDb = v2Db;
 				this.inactiveDb = v1Db;
 			}
+
+			// Migrate webhook_config from data databases to metadata if needed
+			await this.migrateWebhookConfigToMetadata();
 
 			logger.success(`SQLite connected - Active: ${this.currentActive}`);
 			logger.info(`Databases: ${this.v1Path}, ${this.v2Path}`);
@@ -140,6 +145,36 @@ class SQLiteService {
 		// Insert default version if it doesn't exist
 		db.run(`
       INSERT OR IGNORE INTO active_version (id, version) VALUES (1, 'v1')
+    `);
+
+		// Table for webhook configuration (persistent across data refreshes)
+		// Stores Airtable's macSecretBase64 for HMAC validation
+		db.run(`
+      CREATE TABLE IF NOT EXISTS webhook_config (
+        id TEXT PRIMARY KEY DEFAULT 'default',
+        webhook_id TEXT NOT NULL,
+        mac_secret_base64 TEXT NOT NULL,
+        notification_url TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+		// Table for webhook tracking/idempotency (persistent across data refreshes)
+		// Must be in metadata to survive database swaps during full refresh
+		db.run(`
+      CREATE TABLE IF NOT EXISTS processed_webhooks (
+        webhook_id TEXT PRIMARY KEY,
+        processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        refresh_type TEXT NOT NULL,
+        stats TEXT,
+        expires_at DATETIME NOT NULL
+      )
+    `);
+
+		db.run(`
+      CREATE INDEX IF NOT EXISTS idx_processed_webhooks_expires 
+      ON processed_webhooks(expires_at)
     `);
 	}
 
@@ -199,34 +234,6 @@ class SQLiteService {
         name TEXT PRIMARY KEY,
         lock_id TEXT NOT NULL,
         expires_at DATETIME NOT NULL
-      )
-    `);
-
-		// Table for webhook tracking (idempotency)
-		db.run(`
-      CREATE TABLE IF NOT EXISTS processed_webhooks (
-        webhook_id TEXT PRIMARY KEY,
-        processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        refresh_type TEXT NOT NULL,
-        stats TEXT,
-        expires_at DATETIME NOT NULL
-      )
-    `);
-
-		db.run(`
-      CREATE INDEX IF NOT EXISTS idx_processed_webhooks_expires 
-      ON processed_webhooks(expires_at)
-    `);
-
-		// Table for webhook configuration (stores Airtable's macSecretBase64)
-		db.run(`
-      CREATE TABLE IF NOT EXISTS webhook_config (
-        id TEXT PRIMARY KEY DEFAULT 'default',
-        webhook_id TEXT NOT NULL,
-        mac_secret_base64 TEXT NOT NULL,
-        notification_url TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -827,11 +834,12 @@ class SQLiteService {
 
 	/**
 	 * Vérifier si un webhook a déjà été traité
+	 * Uses metadataDb for persistence across database swaps
 	 */
 	async isWebhookProcessed(webhookId: string): Promise<boolean> {
-		if (!this.activeDb) throw new Error("Database not connected");
+		if (!this.metadataDb) throw new Error("Metadata database not connected");
 
-		const stmt = this.activeDb.prepare(`
+		const stmt = this.metadataDb.prepare(`
       SELECT 1 FROM processed_webhooks 
       WHERE webhook_id = ? AND expires_at > datetime('now')
     `);
@@ -842,20 +850,21 @@ class SQLiteService {
 
 	/**
 	 * Marquer un webhook comme traité
+	 * Uses metadataDb for persistence across database swaps
 	 */
 	async markWebhookProcessed(
 		webhookId: string,
 		refreshType: "incremental" | "full",
 		stats: any,
 	): Promise<void> {
-		if (!this.activeDb) throw new Error("Database not connected");
+		if (!this.metadataDb) throw new Error("Metadata database not connected");
 
 		const { config } = await import("../../config");
 		const expiresAt = new Date(
 			Date.now() + config.webhookIdempotencyTTL * 1000,
 		);
 
-		const stmt = this.activeDb.prepare(`
+		const stmt = this.metadataDb.prepare(`
       INSERT OR REPLACE INTO processed_webhooks 
       (webhook_id, refresh_type, stats, expires_at)
       VALUES (?, ?, ?, ?)
@@ -871,11 +880,12 @@ class SQLiteService {
 
 	/**
 	 * Cleanup des webhooks expirés (à appeler périodiquement)
+	 * Uses metadataDb for persistence across database swaps
 	 */
 	async cleanupExpiredWebhooks(): Promise<number> {
-		if (!this.activeDb) throw new Error("Database not connected");
+		if (!this.metadataDb) throw new Error("Metadata database not connected");
 
-		const stmt = this.activeDb.prepare(`
+		const stmt = this.metadataDb.prepare(`
       DELETE FROM processed_webhooks 
       WHERE expires_at <= datetime('now')
     `);
@@ -885,35 +895,36 @@ class SQLiteService {
 	}
 
 	/**
-	 * Stocker la configuration du webhook Airtable
+	 * Stocker la configuration du webhook Airtable (in metadata database for persistence)
 	 */
 	async storeWebhookConfig(
 		webhookId: string,
 		macSecretBase64: string,
 		notificationUrl: string,
 	): Promise<void> {
-		if (!this.activeDb) throw new Error("Database not connected");
+		if (!this.metadataDb) throw new Error("Metadata database not connected");
 
-		const stmt = this.activeDb.prepare(`
+		const stmt = this.metadataDb.prepare(`
       INSERT OR REPLACE INTO webhook_config 
       (id, webhook_id, mac_secret_base64, notification_url, updated_at)
       VALUES ('default', ?, ?, ?, datetime('now'))
     `);
 
 		stmt.run(webhookId, macSecretBase64, notificationUrl);
+		logger.info(`Webhook config stored: ${webhookId}`);
 	}
 
 	/**
-	 * Récupérer la configuration du webhook Airtable
+	 * Récupérer la configuration du webhook Airtable (from metadata database)
 	 */
 	async getWebhookConfig(): Promise<{
 		webhookId: string;
 		macSecretBase64: string;
 		notificationUrl: string;
 	} | null> {
-		if (!this.activeDb) throw new Error("Database not connected");
+		if (!this.metadataDb) throw new Error("Metadata database not connected");
 
-		const stmt = this.activeDb.prepare(`
+		const stmt = this.metadataDb.prepare(`
       SELECT webhook_id, mac_secret_base64, notification_url 
       FROM webhook_config 
       WHERE id = 'default'
@@ -934,6 +945,71 @@ class SQLiteService {
 			macSecretBase64: result.mac_secret_base64,
 			notificationUrl: result.notification_url,
 		};
+	}
+
+	/**
+	 * Migrate webhook_config from data databases (v1/v2) to metadata database
+	 * This is a one-time migration for existing installations
+	 */
+	private async migrateWebhookConfigToMetadata(): Promise<void> {
+		if (!this.metadataDb || !this.activeDb) return;
+
+		// Check if metadata already has a webhook config
+		const existingConfig = this.metadataDb
+			.prepare("SELECT 1 FROM webhook_config WHERE id = 'default'")
+			.get();
+
+		if (existingConfig) {
+			logger.debug("Webhook config already in metadata, skipping migration");
+			return;
+		}
+
+		// Check if there's a legacy webhook_config table in active database
+		const tableExists = this.activeDb
+			.prepare(
+				"SELECT name FROM sqlite_master WHERE type='table' AND name='webhook_config'",
+			)
+			.get();
+
+		if (!tableExists) {
+			logger.debug("No legacy webhook_config table found, skipping migration");
+			return;
+		}
+
+		// Try to migrate from active database
+		const legacyConfig = this.activeDb
+			.prepare(
+				`
+        SELECT webhook_id, mac_secret_base64, notification_url 
+        FROM webhook_config 
+        WHERE id = 'default'
+      `,
+			)
+			.get() as
+			| {
+					webhook_id: string;
+					mac_secret_base64: string;
+					notification_url: string;
+			  }
+			| undefined;
+
+		if (legacyConfig) {
+			// Migrate to metadata
+			const stmt = this.metadataDb.prepare(`
+        INSERT OR REPLACE INTO webhook_config 
+        (id, webhook_id, mac_secret_base64, notification_url, updated_at)
+        VALUES ('default', ?, ?, ?, datetime('now'))
+      `);
+			stmt.run(
+				legacyConfig.webhook_id,
+				legacyConfig.mac_secret_base64,
+				legacyConfig.notification_url,
+			);
+
+			logger.success(
+				`Migrated webhook config to metadata: ${legacyConfig.webhook_id}`,
+			);
+		}
 	}
 
 	// ========================================
@@ -1142,6 +1218,10 @@ class SQLiteService {
 		if (this.inactiveDb) {
 			this.inactiveDb.close();
 			this.inactiveDb = null;
+		}
+		if (this.metadataDb) {
+			this.metadataDb.close();
+			this.metadataDb = null;
 		}
 		logger.success("SQLite connections closed");
 	}

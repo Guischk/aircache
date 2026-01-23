@@ -62,6 +62,11 @@ describe("Airtable Webhooks", () => {
 			`Webhook config stored with secret: ${TEST_SECRET_BASE64.substring(0, 20)}...`,
 		);
 
+		// CRITICAL: Close the database connection before starting the server
+		// to avoid "database is locked" errors when the server process tries to connect
+		sqliteService.close();
+		console.log("Database connection closed, ready to start server...");
+
 		// Start server on different port for tests
 		serverProcess = spawn(["bun", "index.ts"], {
 			env: {
@@ -69,6 +74,7 @@ describe("Airtable Webhooks", () => {
 				WEBHOOK_RATE_LIMIT: "2", // 2s for tests
 				BEARER_TOKEN,
 				PORT: PORT.toString(),
+				SYNC_MODE: "manual", // Use manual mode to avoid automatic refreshes during tests
 				NODE_ENV: "test",
 			},
 			stdout: "inherit",
@@ -234,7 +240,9 @@ describe("Airtable Webhooks", () => {
 		async () => {
 			await waitForRateLimit();
 
-			const webhookId = `test-idempotency-${Date.now()}`;
+			// Use the actual webhook ID that was stored in beforeAll
+			// This ensures the webhook handler can find the config
+			const webhookId = "test-webhook-id";
 			const timestamp = new Date().toISOString();
 			const bodyObj = {
 				base: { id: "appTestBase" },
@@ -350,8 +358,8 @@ describe("Airtable Webhooks", () => {
 	});
 
 	test("should accept Airtable ping (empty payload)", async () => {
-		// Wait for any background refresh to complete
-		await Bun.sleep(1000);
+		// Wait for rate limit to pass before sending ping
+		await waitForRateLimit();
 
 		// Airtable envoie parfois un ping vide pour vérifier l'endpoint
 		const response = await fetch(`${BASE_URL}/webhooks/airtable/refresh`, {

@@ -80,12 +80,23 @@ export async function handleAirtableWebhook(
 			payloads = await fetchAllWebhookPayloads(webhookId);
 		} catch (error) {
 			logger.error("Failed to fetch payloads from Airtable:", error);
+			// Mark as processed to prevent duplicate full refreshes for the same notification
+			await sqliteService.markWebhookProcessed(idempotencyKey, "full", {
+				error: "Failed to fetch payloads",
+				message: error instanceof Error ? error.message : "Unknown error",
+			});
 			// En cas d'erreur, on fait un full refresh par sécurité
 			return triggerFullRefresh("Failed to fetch payloads");
 		}
 
 		if (payloads.length === 0) {
 			logger.info("No payloads to process");
+			// Mark as processed even with no payloads to ensure idempotency
+			await sqliteService.markWebhookProcessed(idempotencyKey, "incremental", {
+				payloadsCount: 0,
+				tablesChanged: 0,
+				message: "No payloads to process",
+			});
 			return new Response(
 				JSON.stringify({
 					status: "success",

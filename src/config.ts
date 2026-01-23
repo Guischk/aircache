@@ -3,6 +3,8 @@
  * Simple configuration with environment variables
  */
 
+export type SyncMode = "polling" | "webhook" | "manual";
+
 export interface Config {
 	// Server settings
 	port: number;
@@ -14,14 +16,20 @@ export interface Config {
 	// API settings
 	bearerToken: string;
 
-	// Cache settings
+	// Sync mode settings
+	syncMode: SyncMode;
+
+	// Cache settings (polling mode)
 	refreshInterval: number;
+
+	// Failsafe refresh (webhook mode)
+	failsafeRefreshInterval: number;
 
 	// Storage settings
 	storagePath: string;
 	enableAttachmentDownload: boolean;
 
-	// Webhook settings
+	// Webhook settings (webhook mode)
 	// Note: Le secret HMAC est stocké en SQLite (macSecretBase64 retourné par Airtable)
 	webhookRateLimit: number;
 	webhookTimestampWindow: number;
@@ -49,12 +57,41 @@ export function loadConfig(): Config {
 		);
 	}
 
+	// Parse sync mode
+	const syncModeEnv = process.env.SYNC_MODE?.toLowerCase() || "polling";
+	if (!["polling", "webhook", "manual"].includes(syncModeEnv)) {
+		throw new Error(
+			`Invalid SYNC_MODE: ${syncModeEnv}. Must be one of: polling, webhook, manual`,
+		);
+	}
+	const syncMode = syncModeEnv as SyncMode;
+
+	// Validate webhook mode requirements
+	const webhookPublicUrl = process.env.WEBHOOK_PUBLIC_URL || "";
+	if (syncMode === "webhook" && !webhookPublicUrl) {
+		throw new Error(
+			"WEBHOOK_PUBLIC_URL is required when SYNC_MODE=webhook.\n" +
+				"Example: WEBHOOK_PUBLIC_URL=https://aircache.yourcompany.com",
+		);
+	}
+
 	return {
 		port: Number.parseInt(process.env.PORT || "3000"),
 		airtableToken,
 		airtableBaseId,
 		bearerToken,
+
+		// Sync mode
+		syncMode,
+
+		// Polling mode: refresh interval
 		refreshInterval: Number.parseInt(process.env.REFRESH_INTERVAL || "86400"), // 24 hours default
+
+		// Webhook mode: failsafe refresh interval
+		failsafeRefreshInterval: Number.parseInt(
+			process.env.FAILSAFE_REFRESH_INTERVAL || "86400",
+		), // 24 hours default
+
 		storagePath: process.env.STORAGE_PATH || "./data/attachments",
 		enableAttachmentDownload:
 			process.env.ENABLE_ATTACHMENT_DOWNLOAD !== "false", // Default to true
@@ -69,7 +106,7 @@ export function loadConfig(): Config {
 			process.env.WEBHOOK_IDEMPOTENCY_TTL || "86400",
 		), // 24 hours
 		webhookAutoSetup: process.env.WEBHOOK_AUTO_SETUP !== "false", // Default to true
-		webhookPublicUrl: process.env.WEBHOOK_PUBLIC_URL || "", // e.g., https://aircache.example.com
+		webhookPublicUrl,
 
 		// Logger settings
 		logLevel: Number.parseInt(process.env.CONSOLA_LEVEL || "3"), // 3 = info level
