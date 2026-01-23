@@ -148,7 +148,19 @@ async function startWebhookMode(
 	logger.start("Starting initial refresh");
 	worker.postMessage({ type: "refresh:start" });
 
-	// Auto-setup webhooks if configured
+	// Validate and sync webhooks before auto-setup
+	// This ensures stored webhook config matches Airtable state
+	try {
+		const { validateAndSyncWebhooks } = await import(
+			"../lib/webhooks/validator"
+		);
+		await validateAndSyncWebhooks();
+	} catch (error) {
+		logger.warn("Webhook validation error", error);
+		// Continue startup even if validation fails
+	}
+
+	// Auto-setup webhooks if configured (will skip if already created by validator)
 	try {
 		const { autoSetupWebhooks } = await import("../lib/webhooks/auto-setup");
 		await autoSetupWebhooks();

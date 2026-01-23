@@ -948,6 +948,19 @@ class SQLiteService {
 	}
 
 	/**
+	 * Supprimer la configuration du webhook (pour resync)
+	 */
+	async clearWebhookConfig(): Promise<void> {
+		if (!this.metadataDb) throw new Error("Metadata database not connected");
+
+		const stmt = this.metadataDb.prepare(`
+      DELETE FROM webhook_config WHERE id = 'default'
+    `);
+		stmt.run();
+		logger.info("Webhook config cleared from SQLite");
+	}
+
+	/**
 	 * Migrate webhook_config from data databases (v1/v2) to metadata database
 	 * This is a one-time migration for existing installations
 	 */
