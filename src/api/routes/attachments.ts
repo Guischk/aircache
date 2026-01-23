@@ -22,13 +22,7 @@ export function setupAttachmentRoutes(app: Hono<AppContext>) {
 		const field = decodeURIComponent(c.req.param("field"));
 		const filename = decodeURIComponent(c.req.param("filename"));
 
-		const response = await handleSpecificAttachment(
-			c.req.raw,
-			table,
-			record,
-			field,
-			filename,
-		);
+		const response = await handleSpecificAttachment(c.req.raw, table, record, field, filename);
 
 		// For attachments, we need to preserve the original response type
 		if (response.headers.get("content-type")?.startsWith("application/json")) {
@@ -45,12 +39,7 @@ export function setupAttachmentRoutes(app: Hono<AppContext>) {
 		const record = decodeURIComponent(c.req.param("record"));
 		const field = decodeURIComponent(c.req.param("field"));
 
-		const response = await handleFieldAttachments(
-			c.req.raw,
-			table,
-			record,
-			field,
-		);
+		const response = await handleFieldAttachments(c.req.raw, table, record, field);
 		return convertResponseToHono(response, c);
 	});
 

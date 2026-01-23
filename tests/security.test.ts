@@ -66,9 +66,7 @@ describe("Security Tests", () => {
 			const result = await apiRequest("/api/tables", { auth: false });
 			expect([401, 500]).toContain(result.status);
 			// Error codes may vary with Hono middleware
-			expect(
-				result.data.error || result.data.message || result.data.code,
-			).toBeDefined();
+			expect(result.data.error || result.data.message || result.data.code).toBeDefined();
 		});
 
 		test("should reject requests with invalid token", async () => {
@@ -107,18 +105,14 @@ describe("Security Tests", () => {
 
 		test("should sanitize table names", async () => {
 			for (const malicious of maliciousInputs) {
-				const result = await apiRequest(
-					`/api/tables/${encodeURIComponent(malicious)}`,
-				);
+				const result = await apiRequest(`/api/tables/${encodeURIComponent(malicious)}`);
 				expect([400, 404, 401, 500, 200]).toContain(result.status);
 			}
 		});
 
 		test("should sanitize record IDs", async () => {
 			for (const malicious of maliciousInputs) {
-				const result = await apiRequest(
-					`/api/tables/Users/${encodeURIComponent(malicious)}`,
-				);
+				const result = await apiRequest(`/api/tables/Users/${encodeURIComponent(malicious)}`);
 				expect([400, 404, 401, 500, 200]).toContain(result.status);
 			}
 		});
@@ -138,9 +132,7 @@ describe("Security Tests", () => {
 
 	describe("Rate Limiting Tests", () => {
 		test("should handle rapid requests gracefully", async () => {
-			const requests = Array.from({ length: 10 }, () =>
-				apiRequest("/health", { auth: false }),
-			);
+			const requests = Array.from({ length: 10 }, () => apiRequest("/health", { auth: false }));
 
 			const results = await Promise.all(requests);
 

@@ -80,10 +80,7 @@ export async function validateWebhookSignature(
 
 		// 7. Extraire le hash et calculer le HMAC attendu
 		const providedHash = signature.replace("hmac-sha256=", "");
-		const computedHash = calculateWebhookHmac(
-			webhookConfig.macSecretBase64,
-			body,
-		);
+		const computedHash = calculateWebhookHmac(webhookConfig.macSecretBase64, body);
 
 		// 8. Comparaison timing-safe
 		const providedBuffer = new Uint8Array(Buffer.from(providedHash, "hex"));
@@ -138,10 +135,7 @@ export async function validateWebhookSignature(
  */
 const lastWebhookTime = new Map<string, number>();
 
-export async function webhookRateLimit(
-	c: Context,
-	next: Next,
-): Promise<Response | undefined> {
+export async function webhookRateLimit(c: Context, next: Next): Promise<Response | undefined> {
 	const { config } = await import("../../config");
 	const key = "airtable-webhook"; // Une seule clé pour toutes les webhooks Airtable
 	const now = Date.now();

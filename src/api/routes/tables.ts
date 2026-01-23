@@ -6,11 +6,7 @@ import type { Hono } from "hono";
 import { loggers } from "../../lib/logger";
 import { normalizeKey } from "../../lib/utils/index";
 import type { AppContext } from "../app";
-import {
-	handleSingleRecord,
-	handleTableRecords,
-	handleTables,
-} from "../handlers/tables";
+import { handleSingleRecord, handleTableRecords, handleTables } from "../handlers/tables";
 import { convertResponseToHono } from "../utils";
 
 const logger = loggers.api;
@@ -24,9 +20,7 @@ export function setupTableRoutes(app: Hono<AppContext>) {
 
 	// 📄 Get specific record by ID
 	app.get("/api/tables/:tableName/:recordId", async (c) => {
-		const tableName = normalizeKey(
-			decodeURIComponent(c.req.param("tableName")),
-		);
+		const tableName = normalizeKey(decodeURIComponent(c.req.param("tableName")));
 		const recordId = decodeURIComponent(c.req.param("recordId"));
 
 		const response = await handleSingleRecord(tableName, recordId);

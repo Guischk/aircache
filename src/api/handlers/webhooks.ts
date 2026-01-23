@@ -55,8 +55,7 @@ export async function handleAirtableWebhook(
 		// 2. Vérifier idempotency avec une clé unique
 		const { sqliteService } = await import("../../lib/sqlite");
 		const idempotencyKey = `${webhookId}-${payload.timestamp}`;
-		const alreadyProcessed =
-			await sqliteService.isWebhookProcessed(idempotencyKey);
+		const alreadyProcessed = await sqliteService.isWebhookProcessed(idempotencyKey);
 
 		if (alreadyProcessed) {
 			logger.info("Webhook already processed (skipping)", { idempotencyKey });
@@ -115,8 +114,7 @@ export async function handleAirtableWebhook(
 		const tablesChanged = Object.keys(aggregatedChanges).length;
 
 		// 5. Décider du type de refresh
-		const refreshType: "incremental" | "full" =
-			tablesChanged > 0 ? "incremental" : "full";
+		const refreshType: "incremental" | "full" = tablesChanged > 0 ? "incremental" : "full";
 
 		logger.info("Processing webhook", {
 			refreshType,
@@ -133,9 +131,7 @@ export async function handleAirtableWebhook(
 		// 7. Trigger async refresh (ne pas attendre)
 		Promise.resolve().then(async () => {
 			try {
-				const { SQLiteBackend } = await import(
-					"../../worker/backends/sqlite-backend"
-				);
+				const { SQLiteBackend } = await import("../../worker/backends/sqlite-backend");
 				const backend = new SQLiteBackend();
 
 				if (refreshType === "incremental" && tablesChanged > 0) {
@@ -222,9 +218,7 @@ async function triggerFullRefresh(reason: string): Promise<Response> {
 
 	Promise.resolve().then(async () => {
 		try {
-			const { SQLiteBackend } = await import(
-				"../../worker/backends/sqlite-backend"
-			);
+			const { SQLiteBackend } = await import("../../worker/backends/sqlite-backend");
 			const backend = new SQLiteBackend();
 			await backend.refreshData();
 			logger.success("Full refresh completed");

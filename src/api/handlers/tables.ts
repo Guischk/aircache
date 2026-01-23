@@ -57,10 +57,7 @@ export async function handleTables(): Promise<Response> {
  * - page: page number (default: 1)
  * - limit: number of records per page (default: 100)
  */
-export async function handleTableRecords(
-	tableName: string,
-	url: URL,
-): Promise<Response> {
+export async function handleTableRecords(tableName: string, url: URL): Promise<Response> {
 	try {
 		// 🔢 Parse pagination parameters from URL
 		const page = Number.parseInt(url.searchParams.get("page") || "1");
@@ -116,10 +113,7 @@ export async function handleTableRecords(
  * - tableName: Airtable table name
  * - recordId: unique record identifier
  */
-export async function handleSingleRecord(
-	tableName: string,
-	recordId: string,
-): Promise<Response> {
+export async function handleSingleRecord(tableName: string, recordId: string): Promise<Response> {
 	try {
 		// 📦 Dynamic import of SQLite service
 		const { sqliteService } = await import("../../lib/sqlite/index");

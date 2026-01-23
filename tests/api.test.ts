@@ -5,15 +5,7 @@
  * Tests unitaires et d'intégration pour tous les endpoints
  */
 
-import {
-	afterAll,
-	afterEach,
-	beforeAll,
-	beforeEach,
-	describe,
-	expect,
-	test,
-} from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { type Subprocess, spawn } from "bun";
 
 // Configuration pour les tests
@@ -91,13 +83,7 @@ async function apiRequest<T = any>(
 	response: Response;
 	ok: boolean;
 }> {
-	const {
-		method = "GET",
-		auth = true,
-		headers = {},
-		body,
-		retries = 0,
-	} = options;
+	const { method = "GET", auth = true, headers = {}, body, retries = 0 } = options;
 
 	const requestHeaders: Record<string, string> = {
 		"Content-Type": "application/json",
@@ -450,9 +436,7 @@ describe("Aircache API Tests", () => {
 				throw new Error("No tables available for testing");
 			}
 
-			const result = await apiRequest(
-				`/api/tables/${encodeURIComponent(firstTable)}`,
-			);
+			const result = await apiRequest(`/api/tables/${encodeURIComponent(firstTable)}`);
 
 			expect(result.status).toBe(200);
 			expect(result.data.backend).toBe("sqlite");
@@ -460,9 +444,7 @@ describe("Aircache API Tests", () => {
 		});
 
 		test("should return 404 for invalid table", async () => {
-			const result = await apiRequest<ApiResponse>(
-				"/api/tables/invalidtable999999999999",
-			);
+			const result = await apiRequest<ApiResponse>("/api/tables/invalidtable999999999999");
 
 			expect([200, 404]).toContain(result.status);
 			// If 200, it means empty records, if 404, table not found - both are valid for an invalid table
@@ -493,9 +475,7 @@ describe("Aircache API Tests", () => {
 		});
 
 		test("should return 404 for invalid table", async () => {
-			const result = await apiRequest(
-				"/api/tables/invalidtable999999999999/some-id",
-			);
+			const result = await apiRequest("/api/tables/invalidtable999999999999/some-id");
 
 			expect(result.status).toBe(404);
 			expect(result.data.error || result.data.message).toMatch(/not found/i);
@@ -516,9 +496,7 @@ describe("Aircache API Tests", () => {
 			});
 
 			expect(result.status).toBe(204);
-			expect(result.headers.get("access-control-allow-methods")).toContain(
-				"GET",
-			);
+			expect(result.headers.get("access-control-allow-methods")).toContain("GET");
 		});
 	});
 

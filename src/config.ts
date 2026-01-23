@@ -60,9 +60,7 @@ export function loadConfig(): Config {
 	// Parse sync mode
 	const syncModeEnv = process.env.SYNC_MODE?.toLowerCase() || "polling";
 	if (!["polling", "webhook", "manual"].includes(syncModeEnv)) {
-		throw new Error(
-			`Invalid SYNC_MODE: ${syncModeEnv}. Must be one of: polling, webhook, manual`,
-		);
+		throw new Error(`Invalid SYNC_MODE: ${syncModeEnv}. Must be one of: polling, webhook, manual`);
 	}
 	const syncMode = syncModeEnv as SyncMode;
 
@@ -88,23 +86,16 @@ export function loadConfig(): Config {
 		refreshInterval: Number.parseInt(process.env.REFRESH_INTERVAL || "86400"), // 24 hours default
 
 		// Webhook mode: failsafe refresh interval
-		failsafeRefreshInterval: Number.parseInt(
-			process.env.FAILSAFE_REFRESH_INTERVAL || "86400",
-		), // 24 hours default
+		failsafeRefreshInterval: Number.parseInt(process.env.FAILSAFE_REFRESH_INTERVAL || "86400"), // 24 hours default
 
 		storagePath: process.env.STORAGE_PATH || "./data/attachments",
-		enableAttachmentDownload:
-			process.env.ENABLE_ATTACHMENT_DOWNLOAD !== "false", // Default to true
+		enableAttachmentDownload: process.env.ENABLE_ATTACHMENT_DOWNLOAD !== "false", // Default to true
 
 		// Webhook settings
 		// Note: Le secret HMAC est stocké en SQLite (macSecretBase64 retourné par Airtable)
 		webhookRateLimit: Number.parseInt(process.env.WEBHOOK_RATE_LIMIT || "30"), // seconds
-		webhookTimestampWindow: Number.parseInt(
-			process.env.WEBHOOK_TIMESTAMP_WINDOW || "300",
-		), // 5 minutes
-		webhookIdempotencyTTL: Number.parseInt(
-			process.env.WEBHOOK_IDEMPOTENCY_TTL || "86400",
-		), // 24 hours
+		webhookTimestampWindow: Number.parseInt(process.env.WEBHOOK_TIMESTAMP_WINDOW || "300"), // 5 minutes
+		webhookIdempotencyTTL: Number.parseInt(process.env.WEBHOOK_IDEMPOTENCY_TTL || "86400"), // 24 hours
 		webhookAutoSetup: process.env.WEBHOOK_AUTO_SETUP !== "false", // Default to true
 		webhookPublicUrl,
 

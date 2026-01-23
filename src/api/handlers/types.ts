@@ -3,10 +3,7 @@
  * Provides developer-friendly TypeScript definitions
  */
 
-import {
-	generateAircacheTypes,
-	generateAircacheTypesJson,
-} from "../../lib/types-generator/index";
+import { generateAircacheTypes, generateAircacheTypesJson } from "../../lib/types-generator/index";
 
 /**
  * GET /api/types

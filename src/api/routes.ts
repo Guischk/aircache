@@ -42,11 +42,7 @@ function createSuccessResponse<T>(data: T, meta?: any): ApiResponse<T> {
 	};
 }
 
-function createErrorResponse(
-	error: string,
-	message: string,
-	code = "INTERNAL_ERROR",
-): Response {
+function createErrorResponse(error: string, message: string, code = "INTERNAL_ERROR"): Response {
 	return new Response(
 		JSON.stringify({
 			success: false,
@@ -145,9 +141,7 @@ export async function handleTables(request: Request): Promise<Response> {
 
 		// Normalize table names for consistency
 		const normalizedTables =
-			tables.length > 0
-				? tables.map((table) => normalizeKey(table))
-				: [...AIRTABLE_TABLE_NAMES];
+			tables.length > 0 ? tables.map((table) => normalizeKey(table)) : [...AIRTABLE_TABLE_NAMES];
 
 		const response: TablesListResponse = {
 			tables: normalizedTables,
@@ -174,10 +168,7 @@ export async function handleTables(request: Request): Promise<Response> {
 /**
  * Records from a specific table
  */
-export async function handleTableRecords(
-	request: Request,
-	tableName: string,
-): Promise<Response> {
+export async function handleTableRecords(request: Request, tableName: string): Promise<Response> {
 	const authError = requireAuth(request);
 	if (authError) {
 		logAuthAttempt(request, false);
@@ -188,9 +179,7 @@ export async function handleTableRecords(
 
 	try {
 		// Check that the table exists (only accept normalized names)
-		const normalizedTableNames = AIRTABLE_TABLE_NAMES.map((name) =>
-			normalizeKey(name),
-		);
+		const normalizedTableNames = AIRTABLE_TABLE_NAMES.map((name) => normalizeKey(name));
 		const normalizedTableName = normalizeKey(tableName);
 
 		if (!normalizedTableNames.includes(normalizedTableName)) {
@@ -209,20 +198,12 @@ export async function handleTableRecords(
 		const offsetParam = url.searchParams.get("offset");
 		const fieldsParam = url.searchParams.get("fields");
 
-		const DEFAULT_LIMIT = Number.parseInt(
-			process.env.API_DEFAULT_LIMIT || "200",
-		);
+		const DEFAULT_LIMIT = Number.parseInt(process.env.API_DEFAULT_LIMIT || "200");
 		const limit = Math.max(
 			0,
-			Math.min(
-				1000,
-				limitParam ? Number.parseInt(limitParam, 10) : DEFAULT_LIMIT,
-			),
+			Math.min(1000, limitParam ? Number.parseInt(limitParam, 10) : DEFAULT_LIMIT),
 		);
-		const offset = Math.max(
-			0,
-			offsetParam ? Number.parseInt(offsetParam, 10) : 0,
-		);
+		const offset = Math.max(0, offsetParam ? Number.parseInt(offsetParam, 10) : 0);
 		const fields = fieldsParam
 			? fieldsParam
 					.split(",")
@@ -231,22 +212,12 @@ export async function handleTableRecords(
 			: null;
 
 		// Get records with pagination (use only normalized table name)
-		let allRecords = await getTableRecords(
-			normalizedTableName,
-			false,
-			limit,
-			offset,
-		);
+		let allRecords = await getTableRecords(normalizedTableName, false, limit, offset);
 		let totalCount = await countTableRecords(normalizedTableName, false);
 
 		// If no records in active version, try inactive version
 		if (totalCount === 0) {
-			allRecords = await getTableRecords(
-				normalizedTableName,
-				true,
-				limit,
-				offset,
-			);
+			allRecords = await getTableRecords(normalizedTableName, true, limit, offset);
 			totalCount = await countTableRecords(normalizedTableName, true);
 		}
 
@@ -310,9 +281,7 @@ export async function handleSingleRecord(
 
 	try {
 		// Check that the table exists (only accept normalized names)
-		const normalizedTableNames = AIRTABLE_TABLE_NAMES.map((name) =>
-			normalizeKey(name),
-		);
+		const normalizedTableNames = AIRTABLE_TABLE_NAMES.map((name) => normalizeKey(name));
 		const normalizedTableName = normalizeKey(tableName);
 
 		if (!normalizedTableNames.includes(normalizedTableName)) {
@@ -413,9 +382,7 @@ export async function handleStats(request: Request): Promise<Response> {
 			totalTables: stats.totalTables,
 		});
 
-		return createJsonResponse(
-			createSuccessResponse(stats, { version: stats.activeVersion }),
-		);
+		return createJsonResponse(createSuccessResponse(stats, { version: stats.activeVersion }));
 	} catch (error) {
 		logger.error("Error fetching stats:", error);
 		return createErrorResponse(
@@ -429,10 +396,7 @@ export async function handleStats(request: Request): Promise<Response> {
 /**
  * Manual refresh endpoint
  */
-export async function handleRefresh(
-	request: Request,
-	worker?: Worker,
-): Promise<Response> {
+export async function handleRefresh(request: Request, worker?: Worker): Promise<Response> {
 	const authError = requireAuth(request);
 	if (authError) {
 		logAuthAttempt(request, false);

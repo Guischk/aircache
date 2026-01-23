@@ -30,9 +30,7 @@ export async function autoSetupWebhooks(): Promise<void> {
 
 	// Check if public URL is configured
 	if (!config.webhookPublicUrl) {
-		logger.warn(
-			"Webhook auto-setup skipped: WEBHOOK_PUBLIC_URL not configured",
-		);
+		logger.warn("Webhook auto-setup skipped: WEBHOOK_PUBLIC_URL not configured");
 		logger.warn("Set WEBHOOK_PUBLIC_URL to enable automatic webhook creation");
 		return;
 	}

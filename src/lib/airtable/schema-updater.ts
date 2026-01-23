@@ -16,7 +16,7 @@ export async function updateAirtableSchema(): Promise<boolean> {
 		logger.start("Début mise à jour du schéma Airtable...");
 
 		// Exécution de la commande airtable-types-gen
-		const result = await Bun.$`bun run airtable:types`.quiet();
+		const result = await Bun.$`bun run types:schema`.quiet();
 
 		if (result.exitCode === 0) {
 			logger.success("Schéma Airtable mis à jour avec succès");

@@ -53,8 +53,7 @@ class SQLiteService {
 	constructor(
 		v1Path: string = process.env.SQLITE_V1_PATH || "data/aircache-v1.sqlite",
 		v2Path: string = process.env.SQLITE_V2_PATH || "data/aircache-v2.sqlite",
-		metadataPath: string = process.env.SQLITE_METADATA_PATH ||
-			"data/metadata.sqlite",
+		metadataPath: string = process.env.SQLITE_METADATA_PATH || "data/metadata.sqlite",
 	) {
 		this.v1Path = v1Path;
 		this.v2Path = v2Path;
@@ -84,9 +83,7 @@ class SQLiteService {
 			await this.initializeMetadataSchema(this.metadataDb);
 
 			// Retrieve active version from metadata
-			this.currentActive = await this.loadActiveVersionFromMetadata(
-				this.metadataDb,
-			);
+			this.currentActive = await this.loadActiveVersionFromMetadata(this.metadataDb);
 
 			// Initialize both databases
 			const v1Db = new Database(this.v1Path);
@@ -182,6 +179,16 @@ class SQLiteService {
       CREATE INDEX IF NOT EXISTS idx_processed_webhooks_expires 
       ON processed_webhooks(expires_at)
     `);
+
+		// Table for base configuration (to detect base changes)
+		db.run(`
+      CREATE TABLE IF NOT EXISTS base_config (
+        id TEXT PRIMARY KEY DEFAULT 'current',
+        base_id TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 	}
 
 	/**
@@ -200,12 +207,8 @@ class SQLiteService {
     `);
 
 		// Index to optimize queries
-		db.run(
-			`CREATE INDEX IF NOT EXISTS idx_table_name ON airtable_records(table_name)`,
-		);
-		db.run(
-			`CREATE INDEX IF NOT EXISTS idx_record_id ON airtable_records(record_id)`,
-		);
+		db.run(`CREATE INDEX IF NOT EXISTS idx_table_name ON airtable_records(table_name)`);
+		db.run(`CREATE INDEX IF NOT EXISTS idx_record_id ON airtable_records(record_id)`);
 
 		// Table for attachments
 		db.run(`
@@ -230,9 +233,7 @@ class SQLiteService {
 		db.run(
 			`CREATE INDEX IF NOT EXISTS idx_attachments_pending ON attachments(local_path) WHERE local_path IS NULL`,
 		);
-		db.run(
-			`CREATE INDEX IF NOT EXISTS idx_attachments_url ON attachments(original_url)`,
-		);
+		db.run(`CREATE INDEX IF NOT EXISTS idx_attachments_url ON attachments(original_url)`);
 
 		// Table for locks (in each database to avoid conflicts)
 		db.run(`
@@ -272,12 +273,10 @@ class SQLiteService {
 	/**
 	 * Load active version from metadata
 	 */
-	private async loadActiveVersionFromMetadata(
-		metadataDb: Database,
-	): Promise<ActiveVersion> {
-		const result = metadataDb
-			.prepare(`SELECT version FROM active_version WHERE id = 1`)
-			.get() as { version: string } | undefined;
+	private async loadActiveVersionFromMetadata(metadataDb: Database): Promise<ActiveVersion> {
+		const result = metadataDb.prepare(`SELECT version FROM active_version WHERE id = 1`).get() as
+			| { version: string }
+			| undefined;
 
 		return (result?.version as ActiveVersion) || "v1";
 	}
@@ -462,9 +461,9 @@ class SQLiteService {
 					// Insert new attachments
 					for (const attachment of attachments) {
 						// Check if this URL already exists with download info
-						const existing = existingAttachmentStmt.get(
-							attachment.original_url,
-						) as { local_path: string; downloaded_at: string } | undefined;
+						const existing = existingAttachmentStmt.get(attachment.original_url) as
+							| { local_path: string; downloaded_at: string }
+							| undefined;
 
 						// Verify the file still exists if we have download info
 						let localPath = null;
@@ -498,11 +497,7 @@ class SQLiteService {
 	/**
 	 * Retrieve a specific record from the active database
 	 */
-	async getRecord(
-		tableNorm: string,
-		recordId: string,
-		useInactive = false,
-	): Promise<any | null> {
+	async getRecord(tableNorm: string, recordId: string, useInactive = false): Promise<any | null> {
 		const db = useInactive ? this.inactiveDb : this.activeDb;
 		if (!db) throw new Error("Database not connected");
 
@@ -572,10 +567,7 @@ class SQLiteService {
 	/**
 	 * Count records in a table
 	 */
-	async countTableRecords(
-		tableNorm: string,
-		useInactive = false,
-	): Promise<number> {
+	async countTableRecords(tableNorm: string, useInactive = false): Promise<number> {
 		const db = useInactive ? this.inactiveDb : this.activeDb;
 		if (!db) throw new Error("Database not connected");
 
@@ -630,9 +622,7 @@ class SQLiteService {
 	/**
 	 * Set active version in metadata
 	 */
-	private async setActiveVersionInMetadata(
-		version: ActiveVersion,
-	): Promise<void> {
+	private async setActiveVersionInMetadata(version: ActiveVersion): Promise<void> {
 		const metadataDb = new Database(this.metadataPath);
 		try {
 			const stmt = metadataDb.prepare(`
@@ -692,19 +682,14 @@ class SQLiteService {
 	async getAttachment(id: string): Promise<Attachment | null> {
 		if (!this.activeDb) throw new Error("Database not connected");
 
-		const stmt = this.activeDb.prepare(
-			`SELECT * FROM attachments WHERE id = ?`,
-		);
+		const stmt = this.activeDb.prepare(`SELECT * FROM attachments WHERE id = ?`);
 		return stmt.get(id) as Attachment | null;
 	}
 
 	/**
 	 * Retrieve all attachments for a table
 	 */
-	async getTableAttachments(
-		tableName: string,
-		useInactive = false,
-	): Promise<Attachment[]> {
+	async getTableAttachments(tableName: string, useInactive = false): Promise<Attachment[]> {
 		const db = useInactive ? this.inactiveDb : this.activeDb;
 		if (!db) throw new Error("Database not connected");
 
@@ -777,11 +762,7 @@ class SQLiteService {
 	/**
 	 * Mark an attachment as downloaded
 	 */
-	async markAttachmentDownloaded(
-		id: string,
-		localPath: string,
-		size?: number,
-	): Promise<void> {
+	async markAttachmentDownloaded(id: string, localPath: string, size?: number): Promise<void> {
 		// Can be called on inactive (during refresh) or active
 		const db = this.inactiveDb || this.activeDb;
 		if (!db) throw new Error("Database not connected");
@@ -816,12 +797,8 @@ class SQLiteService {
 		const totalTables = (tablesStmt.get() as { count: number }).count;
 
 		// Size of both DB files
-		const activeFile = Bun.file(
-			this.currentActive === "v1" ? this.v1Path : this.v2Path,
-		);
-		const inactiveFile = Bun.file(
-			this.currentActive === "v1" ? this.v2Path : this.v1Path,
-		);
+		const activeFile = Bun.file(this.currentActive === "v1" ? this.v1Path : this.v2Path);
+		const inactiveFile = Bun.file(this.currentActive === "v1" ? this.v2Path : this.v1Path);
 		const activeSize = await activeFile.size;
 		const inactiveSize = await inactiveFile.size;
 		const totalSize = activeSize + inactiveSize;
@@ -850,11 +827,7 @@ class SQLiteService {
 	/**
 	 * Supprimer un record (pour webhook incremental)
 	 */
-	async deleteRecord(
-		tableNorm: string,
-		recordId: string,
-		useInactive = false,
-	): Promise<void> {
+	async deleteRecord(tableNorm: string, recordId: string, useInactive = false): Promise<void> {
 		const db = useInactive ? this.inactiveDb : this.activeDb;
 		if (!db) throw new Error("Database not connected");
 
@@ -907,9 +880,7 @@ class SQLiteService {
 		if (!this.metadataDb) throw new Error("Metadata database not connected");
 
 		const { config } = await import("../../config");
-		const expiresAt = new Date(
-			Date.now() + config.webhookIdempotencyTTL * 1000,
-		);
+		const expiresAt = new Date(Date.now() + config.webhookIdempotencyTTL * 1000);
 
 		const stmt = this.metadataDb.prepare(`
       INSERT OR REPLACE INTO processed_webhooks 
@@ -917,12 +888,7 @@ class SQLiteService {
       VALUES (?, ?, ?, ?)
     `);
 
-		stmt.run(
-			webhookId,
-			refreshType,
-			JSON.stringify(stats),
-			expiresAt.toISOString(),
-		);
+		stmt.run(webhookId, refreshType, JSON.stringify(stats), expiresAt.toISOString());
 	}
 
 	/**
@@ -1026,9 +992,7 @@ class SQLiteService {
 
 		// Check if there's a legacy webhook_config table in active database
 		const tableExists = this.activeDb
-			.prepare(
-				"SELECT name FROM sqlite_master WHERE type='table' AND name='webhook_config'",
-			)
+			.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='webhook_config'")
 			.get();
 
 		if (!tableExists) {
@@ -1066,9 +1030,7 @@ class SQLiteService {
 				legacyConfig.notification_url,
 			);
 
-			logger.success(
-				`Migrated webhook config to metadata: ${legacyConfig.webhook_id}`,
-			);
+			logger.success(`Migrated webhook config to metadata: ${legacyConfig.webhook_id}`);
 		}
 	}
 
@@ -1265,6 +1227,70 @@ class SQLiteService {
 			{ id: string; name: string; type: string }
 		>;
 		return fields[fieldId] || null;
+	}
+
+	// ========================================
+	// BASE CONFIGURATION METHODS
+	// ========================================
+
+	/**
+	 * Get stored base ID from metadata
+	 */
+	getStoredBaseId(): string | null {
+		if (!this.metadataDb) return null;
+
+		const result = this.metadataDb
+			.prepare("SELECT base_id FROM base_config WHERE id = 'current'")
+			.get() as { base_id: string } | undefined;
+
+		return result?.base_id || null;
+	}
+
+	/**
+	 * Store base ID in metadata
+	 */
+	setStoredBaseId(baseId: string): void {
+		if (!this.metadataDb) throw new Error("Metadata database not connected");
+
+		const stmt = this.metadataDb.prepare(`
+      INSERT OR REPLACE INTO base_config (id, base_id, updated_at)
+      VALUES ('current', ?, datetime('now'))
+    `);
+		stmt.run(baseId);
+		logger.info("Base ID stored in metadata", { baseId });
+	}
+
+	/**
+	 * Clear all cached data from v1 and v2 databases (for base change)
+	 */
+	async clearAllCachedData(): Promise<void> {
+		if (!this.activeDb || !this.inactiveDb) {
+			throw new Error("Databases not connected");
+		}
+
+		// Clear both databases
+		for (const db of [this.activeDb, this.inactiveDb]) {
+			await this.transactionOn(db, () => {
+				db.run("DELETE FROM airtable_records");
+				db.run("DELETE FROM attachments");
+				db.run("DELETE FROM metadata_mappings");
+				db.run("DELETE FROM locks");
+			});
+		}
+
+		logger.info("All cached data cleared from v1 and v2 databases");
+	}
+
+	/**
+	 * Clear all metadata related to webhooks and processed webhooks
+	 */
+	async clearWebhookMetadata(): Promise<void> {
+		if (!this.metadataDb) throw new Error("Metadata database not connected");
+
+		this.metadataDb.run("DELETE FROM webhook_config");
+		this.metadataDb.run("DELETE FROM processed_webhooks");
+
+		logger.info("Webhook metadata cleared");
 	}
 
 	/**

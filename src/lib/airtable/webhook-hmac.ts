@@ -24,10 +24,7 @@ import { createHmac } from "node:crypto";
  * @param body - Le body JSON du webhook (string)
  * @returns Le hash HMAC en hex (sans préfixe)
  */
-export function calculateWebhookHmac(
-	secretBase64: string,
-	body: string,
-): string {
+export function calculateWebhookHmac(secretBase64: string, body: string): string {
 	// 1. Décoder le secret depuis base64 (obtenir le buffer binaire)
 	const secretDecoded = Buffer.from(secretBase64, "base64");
 

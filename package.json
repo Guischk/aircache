@@ -39,9 +39,9 @@
 		"dev": "bun --hot index.ts",
 		"build": "bun run types && bun build index.ts --target=bun --outdir=dist",
 		"clean": "rm -rf dist data/*.db",
-		"lint": "biome lint src/ tests/ --apply",
-		"format": "biome format src/ tests/ --write",
-		"check": "biome check src/ tests/ --apply",
+		"lint": "eslint src/ tests/ --fix",
+		"format": "prettier --write src/ tests/",
+		"check": "prettier --check src/ tests/ && eslint src/ tests/",
 		"types": "bun run types:schema && bun run types:mappings && bun run types:sync",
 		"types:schema": "airtable-types-gen --output src/lib/airtable/schema.ts -f",
 		"types:mappings": "bun src/lib/airtable/mapping-generator.ts generate",
@@ -75,8 +75,12 @@
 		"access": "public"
 	},
 	"devDependencies": {
+		"@eslint/js": "^9.39.2",
 		"@types/bun": "latest",
-		"@biomejs/biome": "^1.9.4"
+		"eslint": "^9.39.2",
+		"eslint-config-prettier": "^10.1.8",
+		"prettier": "^3.8.1",
+		"typescript-eslint": "^8.53.1"
 	},
 	"peerDependencies": {
 		"typescript": "^5.9.2"

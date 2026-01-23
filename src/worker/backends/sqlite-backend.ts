@@ -7,10 +7,7 @@ import { config } from "../../config";
 import { base } from "../../lib/airtable/index";
 import { AIRTABLE_TABLE_NAMES } from "../../lib/airtable/schema";
 import { loggers } from "../../lib/logger";
-import {
-	getPendingAttachments,
-	markAttachmentDownloaded,
-} from "../../lib/sqlite/helpers";
+import { getPendingAttachments, markAttachmentDownloaded } from "../../lib/sqlite/helpers";
 import { sqliteService } from "../../lib/sqlite/index";
 import { normalizeKey } from "../../lib/utils/index";
 
@@ -74,10 +71,8 @@ export class SQLiteBackend {
 				try {
 					// 1. Get table names for SQLite storage and observability
 					// Airtable API accepts tableId directly, but we need names for SQLite and logs
-					const normalizedTableName =
-						await sqliteService.getNormalizedTableNameById(tableId);
-					const originalTableName =
-						await sqliteService.getOriginalTableNameById(tableId);
+					const normalizedTableName = await sqliteService.getNormalizedTableNameById(tableId);
+					const originalTableName = await sqliteService.getOriginalTableNameById(tableId);
 
 					if (!normalizedTableName || !originalTableName) {
 						logger.warn(`Table ID ${tableId} not found in mappings, skipping`);
@@ -102,9 +97,7 @@ export class SQLiteBackend {
 
 					// 3. Fetch records depuis Airtable (batch) using tableId
 					if (recordIdsToFetch.length > 0) {
-						logger.info(
-							`Fetching ${recordIdsToFetch.length} records from ${originalTableName}`,
-						);
+						logger.info(`Fetching ${recordIdsToFetch.length} records from ${originalTableName}`);
 						logger.info("Record IDs to fetch", { recordIdsToFetch });
 
 						// Airtable API: select() avec filterByFormula
@@ -112,18 +105,14 @@ export class SQLiteBackend {
 						const formula = `OR(${recordIdsToFetch.map((id) => `RECORD_ID()="${id}"`).join(",")})`;
 						logger.info("Airtable filter formula", { formula });
 
-						const records = await base(tableId)
-							.select({ filterByFormula: formula })
-							.all();
+						const records = await base(tableId).select({ filterByFormula: formula }).all();
 
 						// Log fetched records
 						const firstRecord = records[0];
 						logger.info("Records fetched from Airtable", {
 							count: records.length,
 							recordIds: records.map((r) => r.id),
-							firstRecordFields: firstRecord
-								? Object.keys(firstRecord.fields)
-								: [],
+							firstRecordFields: firstRecord ? Object.keys(firstRecord.fields) : [],
 							firstRecordSample: firstRecord
 								? JSON.stringify(firstRecord.fields).substring(0, 500)
 								: "N/A",
@@ -159,12 +148,8 @@ export class SQLiteBackend {
 							});
 						}
 
-						recordsCreated += Object.keys(
-							changes.createdRecordsById || {},
-						).length;
-						recordsUpdated += Object.keys(
-							changes.changedRecordsById || {},
-						).length;
+						recordsCreated += Object.keys(changes.createdRecordsById || {}).length;
+						recordsUpdated += Object.keys(changes.changedRecordsById || {}).length;
 						logger.success(`${records.length} records updated in cache`);
 					}
 
@@ -174,11 +159,7 @@ export class SQLiteBackend {
 						logger.info(`Deleting ${destroyedIds.length} records`);
 
 						for (const recordId of destroyedIds) {
-							await sqliteService.deleteRecord(
-								normalizedTableName,
-								recordId,
-								false,
-							);
+							await sqliteService.deleteRecord(normalizedTableName, recordId, false);
 							recordsDeleted++;
 						}
 
@@ -190,10 +171,11 @@ export class SQLiteBackend {
 			}
 
 			const duration = performance.now() - startTime;
-			logger.success(
-				`Incremental refresh completed in ${(duration / 1000).toFixed(2)}s`,
-				{ recordsCreated, recordsUpdated, recordsDeleted },
-			);
+			logger.success(`Incremental refresh completed in ${(duration / 1000).toFixed(2)}s`, {
+				recordsCreated,
+				recordsUpdated,
+				recordsDeleted,
+			});
 
 			return {
 				tables: Object.keys(changedTablesById).length,
@@ -224,9 +206,7 @@ export class SQLiteBackend {
 			const chunk = items.slice(i, i + maxConcurrency);
 
 			// Process chunk in parallel
-			const results = await Promise.allSettled(
-				chunk.map(async (item) => await processFn(item)),
-			);
+			const results = await Promise.allSettled(chunk.map(async (item) => await processFn(item)));
 
 			// Count results
 			for (const result of results) {
@@ -276,11 +256,7 @@ export class SQLiteBackend {
 					for (const chunk of recordChunks) {
 						try {
 							const normalizedTableName = normalizeKey(tableName);
-							await sqliteService.setRecordsBatch(
-								normalizedTableName,
-								chunk,
-								true,
-							);
+							await sqliteService.setRecordsBatch(normalizedTableName, chunk, true);
 							totalRecords += chunk.length;
 							logger.debug(`Processed batch of ${chunk.length} records`);
 						} catch (error) {
@@ -304,9 +280,7 @@ export class SQLiteBackend {
 						}
 					}
 
-					logger.success(
-						`${tableName}: ${records.length} records synchronized`,
-					);
+					logger.success(`${tableName}: ${records.length} records synchronized`);
 				} catch (error) {
 					logger.error(`Error with table ${tableName}`, error);
 					totalErrors++;
@@ -356,9 +330,7 @@ export class SQLiteBackend {
 		try {
 			// Check if attachment download is enabled
 			if (!config.enableAttachmentDownload) {
-				logger.info(
-					"Attachment download is disabled (ENABLE_ATTACHMENT_DOWNLOAD=false)",
-				);
+				logger.info("Attachment download is disabled (ENABLE_ATTACHMENT_DOWNLOAD=false)");
 				return { downloaded: 0, errors: 0 };
 			}
 
@@ -378,76 +350,63 @@ export class SQLiteBackend {
 
 			// Download attachments with limited concurrency
 			const maxConcurrentDownloads = 5;
-			const { processed, errors: poolErrors } =
-				await this.processAttachmentsWithPool(
-					pendingAttachments,
-					async (attachment) => {
-						// Generate hierarchical path: table/record/field/filename
-						const relativePath = this.generateAttachmentPath(
-							attachment.table_name,
-							attachment.record_id,
-							attachment.field_name,
-							attachment.filename || `attachment_${attachment.id}`,
-							attachment.original_url,
-						);
-						const localPath = path.join(storagePath, relativePath);
+			const { processed, errors: poolErrors } = await this.processAttachmentsWithPool(
+				pendingAttachments,
+				async (attachment) => {
+					// Generate hierarchical path: table/record/field/filename
+					const relativePath = this.generateAttachmentPath(
+						attachment.table_name,
+						attachment.record_id,
+						attachment.field_name,
+						attachment.filename || `attachment_${attachment.id}`,
+						attachment.original_url,
+					);
+					const localPath = path.join(storagePath, relativePath);
 
-						// Check if file already exists and has the correct size
-						const existingFile = Bun.file(localPath);
-						const fileExists = await existingFile.exists();
+					// Check if file already exists and has the correct size
+					const existingFile = Bun.file(localPath);
+					const fileExists = await existingFile.exists();
 
-						if (fileExists) {
-							const existingSize = existingFile.size;
-							if (existingSize === attachment.size) {
-								// File already exists with correct size, just mark as downloaded
-								logger.debug(
-									`Skipping download (file exists): ${attachment.filename}`,
-								);
-								await markAttachmentDownloaded(
-									attachment.id,
-									localPath,
-									attachment.size,
-								);
-								return;
-							}
-							// File exists but wrong size, delete and re-download
-							logger.debug(
-								`File exists but wrong size (${existingSize} vs ${attachment.size}), re-downloading: ${attachment.filename}`,
-							);
-							await Bun.$`rm -f ${localPath}`;
+					if (fileExists) {
+						const existingSize = existingFile.size;
+						if (existingSize === attachment.size) {
+							// File already exists with correct size, just mark as downloaded
+							logger.debug(`Skipping download (file exists): ${attachment.filename}`);
+							await markAttachmentDownloaded(attachment.id, localPath, attachment.size);
+							return;
 						}
-
-						// Ensure directory structure exists
-						const dir = path.dirname(localPath);
-						await Bun.$`mkdir -p ${dir}`;
-
-						// Download file
-						logger.info(
-							`Downloading: ${attachment.filename} to ${relativePath} (${attachment.size} bytes)`,
+						// File exists but wrong size, delete and re-download
+						logger.debug(
+							`File exists but wrong size (${existingSize} vs ${attachment.size}), re-downloading: ${attachment.filename}`,
 						);
-						const response = await fetch(attachment.original_url);
+						await Bun.$`rm -f ${localPath}`;
+					}
 
-						if (!response.ok) {
-							throw new Error(
-								`HTTP ${response.status}: ${response.statusText}`,
-							);
-						}
+					// Ensure directory structure exists
+					const dir = path.dirname(localPath);
+					await Bun.$`mkdir -p ${dir}`;
 
-						// Save to local storage
-						const arrayBuffer = await response.arrayBuffer();
-						await Bun.write(localPath, arrayBuffer);
+					// Download file
+					logger.info(
+						`Downloading: ${attachment.filename} to ${relativePath} (${attachment.size} bytes)`,
+					);
+					const response = await fetch(attachment.original_url);
 
-						// Mark as downloaded in database
-						await markAttachmentDownloaded(
-							attachment.id,
-							localPath,
-							attachment.size,
-						);
+					if (!response.ok) {
+						throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+					}
 
-						logger.success(`${relativePath} downloaded successfully`);
-					},
-					maxConcurrentDownloads,
-				);
+					// Save to local storage
+					const arrayBuffer = await response.arrayBuffer();
+					await Bun.write(localPath, arrayBuffer);
+
+					// Mark as downloaded in database
+					await markAttachmentDownloaded(attachment.id, localPath, attachment.size);
+
+					logger.success(`${relativePath} downloaded successfully`);
+				},
+				maxConcurrentDownloads,
+			);
 
 			downloaded = processed;
 			errors = poolErrors;
@@ -472,9 +431,7 @@ export class SQLiteBackend {
 		url: string,
 	): string {
 		// Remove unsafe characters and limit length for filename
-		const safeFilename = filename
-			.replace(/[^a-zA-Z0-9._-]/g, "_")
-			.substring(0, 100);
+		const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_").substring(0, 100);
 
 		// Create a hash from the URL to ensure uniqueness while being deterministic
 		const urlHash = this.hashString(url).substring(0, 8);

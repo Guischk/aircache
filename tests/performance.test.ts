@@ -78,12 +78,7 @@ async function runBenchmark(
 		timeout?: number;
 	},
 ): Promise<BenchmarkResult> {
-	const {
-		method = "GET",
-		requests = 100,
-		concurrency = 10,
-		timeout = 30000,
-	} = options;
+	const { method = "GET", requests = 100, concurrency = 10, timeout = 30000 } = options;
 
 	console.log(
 		`🧪 Benchmarking ${method} ${endpoint} (${requests} requests, ${concurrency} concurrent)`,
@@ -99,9 +94,7 @@ async function runBenchmark(
 	// Run requests in batches to control concurrency
 	for (let i = 0; i < requests; i += concurrency) {
 		const batch = Math.min(concurrency, requests - i);
-		const promises = Array.from({ length: batch }, () =>
-			apiRequest(endpoint, method),
-		);
+		const promises = Array.from({ length: batch }, () => apiRequest(endpoint, method));
 
 		const batchResults = await Promise.all(promises);
 
@@ -328,9 +321,7 @@ describe("Performance Tests", () => {
 			console.log(
 				`📊 Memory usage: ${initialMemory.heapUsed / 1024 / 1024}MB -> ${finalMemory.heapUsed / 1024 / 1024}MB`,
 			);
-			console.log(
-				`⚡ Memory increase: ${(memoryIncrease / 1024 / 1024).toFixed(2)}MB`,
-			);
+			console.log(`⚡ Memory increase: ${(memoryIncrease / 1024 / 1024).toFixed(2)}MB`);
 		});
 	});
 
@@ -356,22 +347,16 @@ describe("Performance Tests", () => {
 			const firstTable = tablesResult.data.data.tables[0];
 
 			if (firstTable) {
-				const result = await runBenchmark(
-					`/api/tables/${encodeURIComponent(firstTable)}`,
-					{
-						requests: 20,
-						concurrency: 5,
-						timeout: 30000,
-					},
-				);
+				const result = await runBenchmark(`/api/tables/${encodeURIComponent(firstTable)}`, {
+					requests: 20,
+					concurrency: 5,
+					timeout: 30000,
+				});
 
 				expect(result.successCount).toBe(20);
 				expect(result.avgResponseTime).toBeLessThan(1000); // < 1s average
 
-				console.log(
-					`📊 Table records endpoint results (${firstTable}):`,
-					result,
-				);
+				console.log(`📊 Table records endpoint results (${firstTable}):`, result);
 			}
 		});
 	});

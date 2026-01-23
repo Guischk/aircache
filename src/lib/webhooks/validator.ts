@@ -30,9 +30,7 @@ export async function validateAndSyncWebhooks(): Promise<ValidationResult> {
 
 	// Skip if no public URL configured (autoSetupWebhooks will also skip)
 	if (!config.webhookPublicUrl) {
-		logger.info(
-			"Webhook validation skipped: WEBHOOK_PUBLIC_URL not configured",
-		);
+		logger.info("Webhook validation skipped: WEBHOOK_PUBLIC_URL not configured");
 		return { status: "skipped", actions: ["No WEBHOOK_PUBLIC_URL configured"] };
 	}
 
@@ -50,9 +48,7 @@ export async function validateAndSyncWebhooks(): Promise<ValidationResult> {
 		const airtableWebhooks = await client.listWebhooks();
 
 		// Filter webhooks matching our URL
-		const matchingWebhooks = airtableWebhooks.filter(
-			(wh) => wh.notificationUrl === webhookUrl,
-		);
+		const matchingWebhooks = airtableWebhooks.filter((wh) => wh.notificationUrl === webhookUrl);
 
 		logger.info("Validation state", {
 			storedWebhookId: storedConfig?.webhookId || "none",
@@ -62,20 +58,14 @@ export async function validateAndSyncWebhooks(): Promise<ValidationResult> {
 
 		// Case A: We have a stored config
 		if (storedConfig) {
-			const storedWebhookExists = airtableWebhooks.some(
-				(wh) => wh.id === storedConfig.webhookId,
-			);
+			const storedWebhookExists = airtableWebhooks.some((wh) => wh.id === storedConfig.webhookId);
 
 			if (storedWebhookExists) {
 				// Webhook is valid - check for duplicates to clean up
-				const duplicates = matchingWebhooks.filter(
-					(wh) => wh.id !== storedConfig.webhookId,
-				);
+				const duplicates = matchingWebhooks.filter((wh) => wh.id !== storedConfig.webhookId);
 
 				if (duplicates.length > 0) {
-					logger.warn(
-						`Found ${duplicates.length} duplicate webhook(s), cleaning up`,
-					);
+					logger.warn(`Found ${duplicates.length} duplicate webhook(s), cleaning up`);
 					for (const duplicate of duplicates) {
 						try {
 							await client.deleteWebhook(duplicate.id);
@@ -108,12 +98,8 @@ export async function validateAndSyncWebhooks(): Promise<ValidationResult> {
 			}
 
 			// Stored webhook doesn't exist in Airtable anymore
-			logger.warn(
-				`Stored webhook ${storedConfig.webhookId} not found in Airtable`,
-			);
-			actions.push(
-				`Stored webhook ${storedConfig.webhookId} not found in Airtable`,
-			);
+			logger.warn(`Stored webhook ${storedConfig.webhookId} not found in Airtable`);
+			actions.push(`Stored webhook ${storedConfig.webhookId} not found in Airtable`);
 
 			// Clear local config
 			await sqliteService.clearWebhookConfig();
@@ -153,12 +139,8 @@ export async function validateAndSyncWebhooks(): Promise<ValidationResult> {
 		// Case B: No stored config
 		if (matchingWebhooks.length > 0) {
 			// Orphan webhooks exist without local config - delete and recreate
-			logger.warn(
-				`Found ${matchingWebhooks.length} orphan webhook(s) without local config`,
-			);
-			actions.push(
-				`Found ${matchingWebhooks.length} orphan webhook(s) without local config`,
-			);
+			logger.warn(`Found ${matchingWebhooks.length} orphan webhook(s) without local config`);
+			actions.push(`Found ${matchingWebhooks.length} orphan webhook(s) without local config`);
 
 			// Delete all orphan webhooks
 			for (const orphan of matchingWebhooks) {

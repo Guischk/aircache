@@ -63,26 +63,19 @@ export async function fetchAirtableMetadata(): Promise<MappingData> {
 	const baseId = process.env.AIRTABLE_BASE_ID;
 
 	if (!token || !baseId) {
-		throw new Error(
-			"Missing AIRTABLE_PERSONAL_TOKEN or AIRTABLE_BASE_ID environment variables",
-		);
+		throw new Error("Missing AIRTABLE_PERSONAL_TOKEN or AIRTABLE_BASE_ID environment variables");
 	}
 
 	logger.start("Fetching metadata from Airtable API", { baseId });
 
-	const response = await fetch(
-		`https://api.airtable.com/v0/meta/bases/${baseId}/tables`,
-		{
-			headers: {
-				Authorization: `Bearer ${token}`,
-			},
+	const response = await fetch(`https://api.airtable.com/v0/meta/bases/${baseId}/tables`, {
+		headers: {
+			Authorization: `Bearer ${token}`,
 		},
-	);
+	});
 
 	if (!response.ok) {
-		throw new Error(
-			`Failed to fetch Airtable metadata: ${response.status} ${response.statusText}`,
-		);
+		throw new Error(`Failed to fetch Airtable metadata: ${response.status} ${response.statusText}`);
 	}
 
 	const data = (await response.json()) as AirtableMetadataResponse;
@@ -93,10 +86,7 @@ export async function fetchAirtableMetadata(): Promise<MappingData> {
 /**
  * Transform Airtable API response to our mapping format
  */
-function transformToMappingFormat(
-	data: AirtableMetadataResponse,
-	baseId: string,
-): MappingData {
+function transformToMappingFormat(data: AirtableMetadataResponse, baseId: string): MappingData {
 	const tables: Record<string, TableMapping> = {};
 
 	for (const table of data.tables) {

@@ -70,23 +70,16 @@ class SQLiteVsAirtableBenchmark {
 	private initializeTableAliases(): void {
 		const tableNames = Object.values(AIRTABLE_TABLE_NAMES);
 		tableNames.forEach((tableName, index) => {
-			this.tableAliases.set(
-				tableName,
-				`table_${String.fromCharCode(65 + index)}`,
-			);
+			this.tableAliases.set(tableName, `table_${String.fromCharCode(65 + index)}`);
 		});
 	}
 
 	async runBenchmark(): Promise<void> {
 		console.log("🏁 SQLite vs Airtable Performance Benchmark");
 		console.log("============================================");
-		console.log(
-			`📊 Testing ${this.tableAliases.size} tables with multiple scenarios`,
-		);
+		console.log(`📊 Testing ${this.tableAliases.size} tables with multiple scenarios`);
 		console.log(`🌐 API Base: ${API_BASE}`);
-		console.log(
-			`🔐 Bearer Token: ${BEARER_TOKEN ? "Configured" : "Not configured"}\n`,
-		);
+		console.log(`🔐 Bearer Token: ${BEARER_TOKEN ? "Configured" : "Not configured"}\n`);
 
 		// Initialize SQLite
 		await this.setupSQLite();
@@ -106,26 +99,15 @@ class SQLiteVsAirtableBenchmark {
 				try {
 					console.log(`   📋 Scenario: ${scenario.description}`);
 
-					const sqliteResult = await this.benchmarkSQLite(
-						tableName,
-						scenario.name,
-						alias,
-					);
-					const airtableResult = await this.benchmarkAirtable(
-						tableName,
-						scenario.name,
-						alias,
-					);
+					const sqliteResult = await this.benchmarkSQLite(tableName, scenario.name, alias);
+					const airtableResult = await this.benchmarkAirtable(tableName, scenario.name, alias);
 
 					const comparison: ComparisonResult = {
 						table: alias,
 						scenario: scenario.name,
 						sqlite: sqliteResult,
 						airtable: airtableResult,
-						improvement: this.calculateImprovement(
-							sqliteResult,
-							airtableResult,
-						),
+						improvement: this.calculateImprovement(sqliteResult, airtableResult),
 					};
 
 					this.results.push(comparison);
@@ -150,9 +132,7 @@ class SQLiteVsAirtableBenchmark {
 			}
 			console.log("✅ SQLite API available");
 		} catch (error) {
-			console.error(
-				"❌ SQLite API not available. Make sure the server is started:",
-			);
+			console.error("❌ SQLite API not available. Make sure the server is started:");
 			console.error("   bun run dev:sqlite");
 			console.error("   or");
 			console.error("   bun run start:sqlite");
@@ -415,8 +395,7 @@ class SQLiteVsAirtableBenchmark {
 			scenario,
 			totalRequests,
 			duration,
-			avgResponseTime:
-				responseTimes.reduce((a, b) => a + b, 0) / validResponses,
+			avgResponseTime: responseTimes.reduce((a, b) => a + b, 0) / validResponses,
 			minResponseTime: Math.min(...responseTimes),
 			maxResponseTime: Math.max(...responseTimes),
 			p95ResponseTime: sortedTimes[p95Index] || 0,
@@ -427,23 +406,14 @@ class SQLiteVsAirtableBenchmark {
 		};
 	}
 
-	private calculateImprovement(
-		sqlite: BenchmarkResult,
-		airtable: BenchmarkResult,
-	) {
+	private calculateImprovement(sqlite: BenchmarkResult, airtable: BenchmarkResult) {
 		const speedFactor =
-			airtable.avgResponseTime > 0
-				? airtable.avgResponseTime / sqlite.avgResponseTime
-				: 0;
+			airtable.avgResponseTime > 0 ? airtable.avgResponseTime / sqlite.avgResponseTime : 0;
 		const throughputFactor =
-			sqlite.requestsPerSecond > 0
-				? sqlite.requestsPerSecond / airtable.requestsPerSecond
-				: 0;
+			sqlite.requestsPerSecond > 0 ? sqlite.requestsPerSecond / airtable.requestsPerSecond : 0;
 		const latencyReduction =
 			airtable.avgResponseTime > 0
-				? ((airtable.avgResponseTime - sqlite.avgResponseTime) /
-						airtable.avgResponseTime) *
-					100
+				? ((airtable.avgResponseTime - sqlite.avgResponseTime) / airtable.avgResponseTime) * 100
 				: 0;
 		const reliabilityIncrease = sqlite.successRate - airtable.successRate;
 
@@ -476,11 +446,9 @@ class SQLiteVsAirtableBenchmark {
 		// Global statistics
 		const totalScenarios = this.results.length;
 		const avgSpeedFactor =
-			this.results.reduce((sum, r) => sum + r.improvement.speedFactor, 0) /
-			totalScenarios;
+			this.results.reduce((sum, r) => sum + r.improvement.speedFactor, 0) / totalScenarios;
 		const avgLatencyReduction =
-			this.results.reduce((sum, r) => sum + r.improvement.latencyReduction, 0) /
-			totalScenarios;
+			this.results.reduce((sum, r) => sum + r.improvement.latencyReduction, 0) / totalScenarios;
 
 		console.log(`\n🎯 Average results (${totalScenarios} scenarios tested):`);
 		console.log(`   Speed factor: ${avgSpeedFactor.toFixed(1)}x`);
@@ -488,12 +456,8 @@ class SQLiteVsAirtableBenchmark {
 
 		// Detailed table
 		console.log("\n📋 Details by scenario:");
-		console.log(
-			"| Table | Scenario | SQLite (ms) | Airtable (ms) | Factor | Reduction |",
-		);
-		console.log(
-			"|-------|----------|-------------|---------------|---------|-----------|",
-		);
+		console.log("| Table | Scenario | SQLite (ms) | Airtable (ms) | Factor | Reduction |");
+		console.log("|-------|----------|-------------|---------------|---------|-----------|");
 
 		for (const result of this.results) {
 			console.log(
@@ -506,23 +470,17 @@ class SQLiteVsAirtableBenchmark {
 		const scenarioTypes = [...new Set(this.results.map((r) => r.scenario))];
 
 		for (const scenario of scenarioTypes) {
-			const scenarioResults = this.results.filter(
-				(r) => r.scenario === scenario,
-			);
+			const scenarioResults = this.results.filter((r) => r.scenario === scenario);
 			const avgImprovement =
 				scenarioResults.reduce((sum, r) => sum + r.improvement.speedFactor, 0) /
 				scenarioResults.length;
-			console.log(
-				`   ${scenario}: ${avgImprovement.toFixed(1)}x faster on average`,
-			);
+			console.log(`   ${scenario}: ${avgImprovement.toFixed(1)}x faster on average`);
 		}
 
 		// SQLite advantages
 		console.log("\n💰 Economic and technical advantages of SQLite:");
 		console.log(
-			"   ✅ Performance: On average " +
-				avgSpeedFactor.toFixed(1) +
-				"x faster than Airtable",
+			"   ✅ Performance: On average " + avgSpeedFactor.toFixed(1) + "x faster than Airtable",
 		);
 		console.log("   ✅ Cost: No API request limits (Airtable: 5 req/s max)");
 		console.log("   ✅ Availability: Works offline");
@@ -533,14 +491,10 @@ class SQLiteVsAirtableBenchmark {
 
 		// Recommendations
 		console.log("\n🎯 Recommendations:");
-		console.log(
-			"   🔄 Sync Airtable → SQLite: 1x per day (or according to business needs)",
-		);
+		console.log("   🔄 Sync Airtable → SQLite: 1x per day (or according to business needs)");
 		console.log("   📊 Read queries: 100% via SQLite cache");
 		console.log("   📝 Writes: Directly to Airtable + refresh SQLite");
-		console.log(
-			"   ⚡ Optimal hybrid architecture for performance and flexibility",
-		);
+		console.log("   ⚡ Optimal hybrid architecture for performance and flexibility");
 
 		this.generateMarkdownReport();
 	}
@@ -557,11 +511,9 @@ class SQLiteVsAirtableBenchmark {
 		// Executive summary
 		const totalScenarios = this.results.length;
 		const avgSpeedFactor =
-			this.results.reduce((sum, r) => sum + r.improvement.speedFactor, 0) /
-			totalScenarios;
+			this.results.reduce((sum, r) => sum + r.improvement.speedFactor, 0) / totalScenarios;
 		const avgLatencyReduction =
-			this.results.reduce((sum, r) => sum + r.improvement.latencyReduction, 0) /
-			totalScenarios;
+			this.results.reduce((sum, r) => sum + r.improvement.latencyReduction, 0) / totalScenarios;
 
 		markdown += `## 🎯 Executive Summary\n\n`;
 		markdown += `- **Average performance:** SQLite is ${avgSpeedFactor.toFixed(1)}x faster than Airtable\n`;

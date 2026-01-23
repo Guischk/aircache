@@ -58,9 +58,7 @@ describe("Airtable Webhooks", () => {
 			TEST_SECRET_BASE64,
 			`${BASE_URL}/webhooks/airtable/refresh`,
 		);
-		console.log(
-			`Webhook config stored with secret: ${TEST_SECRET_BASE64.substring(0, 20)}...`,
-		);
+		console.log(`Webhook config stored with secret: ${TEST_SECRET_BASE64.substring(0, 20)}...`);
 
 		// CRITICAL: Close the database connection before starting the server
 		// to avoid "database is locked" errors when the server process tries to connect

@@ -105,8 +105,7 @@ class SQLiteWorker {
 
 			this.postMessage({
 				type: "refresh:error",
-				error:
-					error instanceof Error ? error.message : "Stats retrieval failed",
+				error: error instanceof Error ? error.message : "Stats retrieval failed",
 			});
 		}
 	}

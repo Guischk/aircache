@@ -36,9 +36,7 @@ describe("Attachment Duplicate Prevention", () => {
 		const backend = new SQLiteBackend();
 
 		// Use reflection to access private method for testing
-		const generateAttachmentPath = (backend as any).generateAttachmentPath.bind(
-			backend,
-		);
+		const generateAttachmentPath = (backend as any).generateAttachmentPath.bind(backend);
 
 		const tableName = "Table1";
 		const recordId = "rec123";
@@ -47,32 +45,16 @@ describe("Attachment Duplicate Prevention", () => {
 		const url = "https://example.com/image.jpg";
 
 		// Generate path multiple times - should be identical
-		const path1 = generateAttachmentPath(
-			tableName,
-			recordId,
-			fieldName,
-			filename,
-			url,
-		);
-		const path2 = generateAttachmentPath(
-			tableName,
-			recordId,
-			fieldName,
-			filename,
-			url,
-		);
+		const path1 = generateAttachmentPath(tableName, recordId, fieldName, filename, url);
+		const path2 = generateAttachmentPath(tableName, recordId, fieldName, filename, url);
 
 		expect(path1).toBe(path2);
-		expect(path1).toMatch(
-			/Table1[\\/]rec123[\\/]attachments[\\/]test-image_[a-f0-9]{8}\.jpg/,
-		);
+		expect(path1).toMatch(/Table1[\\/]rec123[\\/]attachments[\\/]test-image_[a-f0-9]{8}\.jpg/);
 	});
 
 	test("should generate different paths for different URLs", () => {
 		const backend = new SQLiteBackend();
-		const generateAttachmentPath = (backend as any).generateAttachmentPath.bind(
-			backend,
-		);
+		const generateAttachmentPath = (backend as any).generateAttachmentPath.bind(backend);
 
 		const tableName = "Table1";
 		const recordId = "rec123";
@@ -81,20 +63,8 @@ describe("Attachment Duplicate Prevention", () => {
 		const url1 = "https://example.com/image1.jpg";
 		const url2 = "https://example.com/image2.jpg";
 
-		const path1 = generateAttachmentPath(
-			tableName,
-			recordId,
-			fieldName,
-			filename,
-			url1,
-		);
-		const path2 = generateAttachmentPath(
-			tableName,
-			recordId,
-			fieldName,
-			filename,
-			url2,
-		);
+		const path1 = generateAttachmentPath(tableName, recordId, fieldName, filename, url1);
+		const path2 = generateAttachmentPath(tableName, recordId, fieldName, filename, url2);
 
 		expect(path1).not.toBe(path2);
 	});

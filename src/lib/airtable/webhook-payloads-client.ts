@@ -167,9 +167,7 @@ export function aggregatePayloadChanges(payloads: WebhookPayload[]): {
 		}
 
 		if (payload.changedTablesById) {
-			for (const [tableId, changes] of Object.entries(
-				payload.changedTablesById,
-			)) {
+			for (const [tableId, changes] of Object.entries(payload.changedTablesById)) {
 				if (!aggregated[tableId]) {
 					aggregated[tableId] = {
 						createdRecordIds: [],
@@ -179,19 +177,13 @@ export function aggregatePayloadChanges(payloads: WebhookPayload[]): {
 				}
 
 				if (changes.createdRecordsById) {
-					aggregated[tableId].createdRecordIds.push(
-						...Object.keys(changes.createdRecordsById),
-					);
+					aggregated[tableId].createdRecordIds.push(...Object.keys(changes.createdRecordsById));
 				}
 				if (changes.changedRecordsById) {
-					aggregated[tableId].changedRecordIds.push(
-						...Object.keys(changes.changedRecordsById),
-					);
+					aggregated[tableId].changedRecordIds.push(...Object.keys(changes.changedRecordsById));
 				}
 				if (changes.destroyedRecordIds) {
-					aggregated[tableId].destroyedRecordIds.push(
-						...changes.destroyedRecordIds,
-					);
+					aggregated[tableId].destroyedRecordIds.push(...changes.destroyedRecordIds);
 				}
 			}
 		}

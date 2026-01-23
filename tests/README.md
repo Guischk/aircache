@@ -84,23 +84,23 @@ import { test, expect, describe, beforeAll, afterAll } from "bun:test";
 import { TEST_BASE_URL, startTestServer, stopTestServer } from "./test-config";
 
 describe("Feature Name", () => {
-  beforeAll(async () => {
-    await startTestServer();
-  });
+	beforeAll(async () => {
+		await startTestServer();
+	});
 
-  afterAll(() => {
-    stopTestServer();
-  });
+	afterAll(() => {
+		stopTestServer();
+	});
 
-  test("should [behavior] when [condition]", async () => {
-    const response = await fetch(`${TEST_BASE_URL}/api/endpoint`, {
-      headers: { Authorization: `Bearer ${process.env.BEARER_TOKEN}` }
-    });
-    
-    expect(response.ok).toBe(true);
-    const data = await response.json();
-    expect(data).toHaveProperty("expected_field");
-  });
+	test("should [behavior] when [condition]", async () => {
+		const response = await fetch(`${TEST_BASE_URL}/api/endpoint`, {
+			headers: { Authorization: `Bearer ${process.env.BEARER_TOKEN}` },
+		});
+
+		expect(response.ok).toBe(true);
+		const data = await response.json();
+		expect(data).toHaveProperty("expected_field");
+	});
 });
 ```
 
@@ -111,16 +111,15 @@ Never hardcode table names. Always retrieve dynamically:
 ```typescript
 // Get available tables
 const tablesResponse = await fetch(`${TEST_BASE_URL}/api/tables`, {
-  headers: { Authorization: `Bearer ${token}` }
+	headers: { Authorization: `Bearer ${token}` },
 });
 const { tables } = await tablesResponse.json();
 
 // Use first table for testing
 const testTable = tables[0];
-const recordsResponse = await fetch(
-  `${TEST_BASE_URL}/api/tables/${testTable}`,
-  { headers: { Authorization: `Bearer ${token}` } }
-);
+const recordsResponse = await fetch(`${TEST_BASE_URL}/api/tables/${testTable}`, {
+	headers: { Authorization: `Bearer ${token}` },
+});
 ```
 
 ## Running Benchmarks
@@ -135,6 +134,7 @@ bun run benchmark
 ## Continuous Integration
 
 Tests run automatically on:
+
 - Pull requests
 - Pushes to main branch
 
@@ -161,7 +161,7 @@ Increase timeout in test file:
 
 ```typescript
 test("slow operation", async () => {
-  // test code
+	// test code
 }, 30000); // 30 second timeout
 ```
 
@@ -175,6 +175,7 @@ lsof -ti:3001 | xargs kill -9
 ### Flaky Tests
 
 If tests intermittently fail:
+
 1. Check for shared state between tests
 2. Ensure proper cleanup in `afterEach`/`afterAll`
 3. Add retries for network operations

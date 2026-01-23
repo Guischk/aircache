@@ -16,10 +16,7 @@ const logger = loggers.server;
  * - Configures Bun.serve() to use Hono's fetch handler
  * - Passes worker instance to Hono context
  */
-export async function startSQLiteApiServer(
-	port: number,
-	worker?: Worker,
-): Promise<void> {
+export async function startSQLiteApiServer(port: number, worker?: Worker): Promise<void> {
 	logger.start("Starting Hono API server", { port });
 
 	// 🚀 Create Hono application with all routes and middleware

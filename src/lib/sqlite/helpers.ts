@@ -29,16 +29,20 @@ export async function withLock<T>(
 
 			// Clean up expired locks first
 			sqliteService["activeDb"]
-				.prepare(`
+				.prepare(
+					`
         DELETE FROM locks WHERE expires_at <= CURRENT_TIMESTAMP
-      `)
+      `,
+				)
 				.run();
 
 			// Check if lock already exists
 			const existingLock = sqliteService["activeDb"]
-				.prepare(`
+				.prepare(
+					`
         SELECT name FROM locks WHERE name = ? AND expires_at > CURRENT_TIMESTAMP
-      `)
+      `,
+				)
 				.get(name);
 
 			if (existingLock) {
@@ -47,10 +51,12 @@ export async function withLock<T>(
 
 			// Acquire the lock
 			sqliteService["activeDb"]
-				.prepare(`
+				.prepare(
+					`
         INSERT OR REPLACE INTO locks (name, lock_id, expires_at)
         VALUES (?, ?, ?)
-      `)
+      `,
+				)
 				.run(name, lockId, expiresAt);
 
 			return true;
@@ -74,9 +80,11 @@ export async function withLock<T>(
 				await sqliteService.transaction(() => {
 					if (!sqliteService["activeDb"]) return;
 					sqliteService["activeDb"]
-						.prepare(`
+						.prepare(
+							`
             DELETE FROM locks WHERE name = ? AND lock_id = ?
-          `)
+          `,
+						)
 						.run(name, lockId);
 				});
 				logger.debug(`Lock ${name} released`);
@@ -154,21 +162,13 @@ export async function getTableRecords(
 	limit?: number,
 	offset?: number,
 ): Promise<any[]> {
-	return await sqliteService.getTableRecords(
-		tableNorm,
-		useInactive,
-		limit,
-		offset,
-	);
+	return await sqliteService.getTableRecords(tableNorm, useInactive, limit, offset);
 }
 
 /**
  * Counts records in a table (equivalent to Redis SCARD)
  */
-export async function countTableRecords(
-	tableNorm: string,
-	useInactive = false,
-): Promise<number> {
+export async function countTableRecords(tableNorm: string, useInactive = false): Promise<number> {
 	return await sqliteService.countTableRecords(tableNorm, useInactive);
 }
 
@@ -189,10 +189,7 @@ export async function clearVersion(): Promise<void> {
 /**
  * Marks an attachment as downloaded with its local path
  */
-export async function setAttachmentLocalPath(
-	id: string,
-	localPath: string,
-): Promise<void> {
+export async function setAttachmentLocalPath(id: string, localPath: string): Promise<void> {
 	await sqliteService.setAttachmentLocalPath(id, localPath);
 }
 
@@ -206,10 +203,7 @@ export async function getAttachment(id: string) {
 /**
  * Retrieves all attachments for a table
  */
-export async function getTableAttachments(
-	tableName: string,
-	useInactive = false,
-) {
+export async function getTableAttachments(tableName: string, useInactive = false) {
 	return await sqliteService.getTableAttachments(tableName, useInactive);
 }
 
@@ -221,11 +215,7 @@ export async function getRecordAttachments(
 	recordId: string,
 	useInactive = false,
 ) {
-	return await sqliteService.getRecordAttachments(
-		tableName,
-		recordId,
-		useInactive,
-	);
+	return await sqliteService.getRecordAttachments(tableName, recordId, useInactive);
 }
 
 /**
@@ -237,12 +227,7 @@ export async function getFieldAttachments(
 	fieldName: string,
 	useInactive = false,
 ) {
-	return await sqliteService.getFieldAttachments(
-		tableName,
-		recordId,
-		fieldName,
-		useInactive,
-	);
+	return await sqliteService.getFieldAttachments(tableName, recordId, fieldName, useInactive);
 }
 
 /**

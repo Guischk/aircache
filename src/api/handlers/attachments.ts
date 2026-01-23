@@ -122,11 +122,7 @@ export async function handleFieldAttachments(
 	fieldName: string,
 ): Promise<Response> {
 	try {
-		const attachments = await getFieldAttachments(
-			tableName,
-			recordId,
-			fieldName,
-		);
+		const attachments = await getFieldAttachments(tableName, recordId, fieldName);
 
 		return new Response(
 			JSON.stringify({
@@ -182,11 +178,7 @@ export async function handleSpecificAttachment(
 ): Promise<Response> {
 	try {
 		// Get all attachments for the field and find the one matching the filename
-		const attachments = await getFieldAttachments(
-			tableName,
-			recordId,
-			fieldName,
-		);
+		const attachments = await getFieldAttachments(tableName, recordId, fieldName);
 		const attachment = attachments.find((att: any) => {
 			const localFilename = path.basename(att.local_path || "");
 			return localFilename === filename;
@@ -240,10 +232,7 @@ export async function handleSpecificAttachment(
 /**
  * Legacy: Serve an attachment file by ID (for backward compatibility)
  */
-export async function handleAttachment(
-	_request: Request,
-	attachmentId: string,
-): Promise<Response> {
+export async function handleAttachment(_request: Request, attachmentId: string): Promise<Response> {
 	try {
 		// Get attachment info from database
 		const attachment = await getAttachment(attachmentId);
@@ -364,14 +353,11 @@ function getContentType(ext: string): string {
 		".svg": "image/svg+xml",
 		".pdf": "application/pdf",
 		".doc": "application/msword",
-		".docx":
-			"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 		".xls": "application/vnd.ms-excel",
-		".xlsx":
-			"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 		".ppt": "application/vnd.ms-powerpoint",
-		".pptx":
-			"application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 		".txt": "text/plain",
 		".csv": "text/csv",
 		".json": "application/json",

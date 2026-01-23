@@ -24,23 +24,16 @@ export function getServerConfig(): ServerConfig {
 	};
 }
 
-export async function startServer(
-	overrideConfig?: Partial<ServerConfig>,
-): Promise<void> {
+export async function startServer(overrideConfig?: Partial<ServerConfig>): Promise<void> {
 	const fullConfig = { ...getServerConfig(), ...overrideConfig };
 
 	logger.start("Starting Aircache service (SQLite)");
 	logger.info("Configuration", {
 		port: fullConfig.port,
 		syncMode: fullConfig.syncMode,
-		refreshInterval:
-			fullConfig.syncMode === "polling"
-				? `${fullConfig.refreshInterval}s`
-				: "N/A",
+		refreshInterval: fullConfig.syncMode === "polling" ? `${fullConfig.refreshInterval}s` : "N/A",
 		failsafeRefreshInterval:
-			fullConfig.syncMode === "webhook"
-				? `${fullConfig.failsafeRefreshInterval}s`
-				: "N/A",
+			fullConfig.syncMode === "webhook" ? `${fullConfig.failsafeRefreshInterval}s` : "N/A",
 	});
 
 	await startSQLiteServer(fullConfig);
@@ -59,12 +52,21 @@ async function startSQLiteServer(serverConfig: ServerConfig): Promise<void> {
 	await sqliteService.connect();
 	logger.success("SQLite databases initialized");
 
+	// Detect base change and reset if needed
+	const { detectAndHandleBaseChange } = await import("../lib/base-change-detector");
+	const baseChangeResult = await detectAndHandleBaseChange();
+	if (baseChangeResult.changed) {
+		if (baseChangeResult.isFirstInitialization) {
+			logger.success("First initialization completed");
+		} else {
+			logger.success("Base change handled, data reset completed");
+		}
+	}
+
 	// Sync table mappings on startup
 	logger.start("Syncing table mappings");
 	try {
-		const { syncMappingsToDatabase } = await import(
-			"../lib/airtable/mapping-generator"
-		);
+		const { syncMappingsToDatabase } = await import("../lib/airtable/mapping-generator");
 		await syncMappingsToDatabase();
 		logger.success("Table mappings synced");
 	} catch (error) {
@@ -115,10 +117,7 @@ async function startSQLiteServer(serverConfig: ServerConfig): Promise<void> {
 /**
  * Polling mode: Regular full refresh at configured interval
  */
-async function startPollingMode(
-	worker: Worker,
-	serverConfig: ServerConfig,
-): Promise<void> {
+async function startPollingMode(worker: Worker, serverConfig: ServerConfig): Promise<void> {
 	logger.info("Sync mode: POLLING");
 
 	// Initial refresh on startup
@@ -138,10 +137,7 @@ async function startPollingMode(
 /**
  * Webhook mode: Real-time updates via Airtable webhooks + failsafe refresh
  */
-async function startWebhookMode(
-	worker: Worker,
-	serverConfig: ServerConfig,
-): Promise<void> {
+async function startWebhookMode(worker: Worker, serverConfig: ServerConfig): Promise<void> {
 	logger.info("Sync mode: WEBHOOK");
 
 	// Initial refresh on startup (always, to ensure data consistency)
@@ -151,9 +147,7 @@ async function startWebhookMode(
 	// Validate and sync webhooks before auto-setup
 	// This ensures stored webhook config matches Airtable state
 	try {
-		const { validateAndSyncWebhooks } = await import(
-			"../lib/webhooks/validator"
-		);
+		const { validateAndSyncWebhooks } = await import("../lib/webhooks/validator");
 		await validateAndSyncWebhooks();
 	} catch (error) {
 		logger.warn("Webhook validation error", error);

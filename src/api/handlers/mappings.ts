@@ -48,16 +48,12 @@ export async function handleGetMappings(): Promise<Response> {
  * GET /api/mappings/:identifier
  * Returns a specific table mapping by ID or normalized name
  */
-export async function handleGetTableMapping(
-	identifier: string,
-): Promise<Response> {
+export async function handleGetTableMapping(identifier: string): Promise<Response> {
 	try {
 		const mappings = await sqliteService.getAllMappings();
 
 		// Find by table ID or normalized name
-		const mapping = mappings.find(
-			(m) => m.id === identifier || m.normalizedName === identifier,
-		);
+		const mapping = mappings.find((m) => m.id === identifier || m.normalizedName === identifier);
 
 		if (!mapping) {
 			return new Response(

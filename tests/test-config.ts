@@ -41,13 +41,7 @@ export const TEST_CONFIG = {
 		maxTableNameLength: 100,
 		maxRecordIdLength: 100,
 		allowedOrigins: ["*"], // À restreindre en production
-		blockedPatterns: [
-			/<script/i,
-			/javascript:/i,
-			/onload=/i,
-			/DROP TABLE/i,
-			/UNION SELECT/i,
-		],
+		blockedPatterns: [/<script/i, /javascript:/i, /onload=/i, /DROP TABLE/i, /UNION SELECT/i],
 	},
 
 	// Endpoints à tester

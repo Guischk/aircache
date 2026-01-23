@@ -3,10 +3,7 @@
  * Uses Zod schema to create optimized SQLite tables
  */
 
-import {
-	AIRTABLE_TABLE_NAMES,
-	type AirtableTableName,
-} from "../airtable/schema";
+import { AIRTABLE_TABLE_NAMES, type AirtableTableName } from "../airtable/schema";
 import { normalizeKey } from "../utils";
 
 /**
@@ -162,13 +159,7 @@ export function extractAttachments(
 	for (const [fieldName, value] of Object.entries(data)) {
 		if (Array.isArray(value)) {
 			value.forEach((item, index) => {
-				if (
-					item &&
-					typeof item === "object" &&
-					item.url &&
-					item.filename &&
-					item.size
-				) {
+				if (item && typeof item === "object" && item.url && item.filename && item.size) {
 					attachments.push({
 						id: `${recordId}_${fieldName}_${index}`,
 						record_id: recordId,
