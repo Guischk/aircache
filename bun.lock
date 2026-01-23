@@ -88,7 +88,7 @@
 
     "airtable": ["airtable@0.12.2", "", { "dependencies": { "@types/node": ">=8.0.0 <15", "abort-controller": "^3.0.0", "abortcontroller-polyfill": "^1.4.0", "lodash": "^4.17.21", "node-fetch": "^2.6.7" } }, "sha512-HS3VytUBTKj8A0vPl7DDr5p/w3IOGv6RXL0fv7eczOWAtj9Xe8ri4TAiZRXoOyo+Z/COADCj+oARFenbxhmkIg=="],
 
-    "airtable-types-gen": ["airtable-types-gen@0.4.0", "", { "dependencies": { "airtable": "^0.12.2", "dotenv": "^16.4.5", "zod": "^3.23.8" }, "bin": { "airtable-types-gen": "bin/airtable-types-gen" } }, "sha512-0TSWRefaBgOhaXfBseLnqONWR0wemSVm7xAbyTlCsvVMweyqMgHFBg811NIEtF5nSrPH5/QqHru//EnJP3YXFg=="],
+    "airtable-types-gen": ["airtable-types-gen@0.4.1", "", { "dependencies": { "airtable": "^0.12.2", "dotenv": "^16.4.5", "zod": "^3.23.8" }, "bin": { "airtable-types-gen": "bin/airtable-types-gen" } }, "sha512-MZK2NfcbcDbkySiJCbpN/GtcPkMw0qL0HlfnBRGFTfOITb5m8znZ1cKvK4a0Ei6epKEmC7RiRLibEmWk2x3JIw=="],
 
     "ajv": ["ajv@6.12.6", "", { "dependencies": { "fast-deep-equal": "^3.1.1", "fast-json-stable-stringify": "^2.0.0", "json-schema-traverse": "^0.4.1", "uri-js": "^4.2.2" } }, "sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g=="],
 

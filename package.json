@@ -87,7 +87,7 @@
 	},
 	"dependencies": {
 		"airtable": "^0.12.2",
-		"airtable-types-gen": "^0.4.0",
+		"airtable-types-gen": "^0.4.1",
 		"consola": "^3.4.2",
 		"hono": "^4.11.5"
 	}
