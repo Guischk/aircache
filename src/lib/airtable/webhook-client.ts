@@ -208,6 +208,7 @@ export class AirtableWebhookClient {
 						Authorization: `Bearer ${this.token}`,
 						"Content-Type": "application/json",
 					},
+					body: JSON.stringify({ enable: true }),
 				});
 
 				if (!response.ok) {
