@@ -38,7 +38,7 @@
 		"start": "bun index.ts",
 		"dev": "bun --hot index.ts",
 		"build": "bun run types && bun build index.ts --target=bun --outdir=dist",
-		"clean": "rm -rf dist data/*.db",
+		"clean": "rm -rf dist data",
 		"lint": "eslint src/ tests/ --fix",
 		"format": "prettier --write src/ tests/",
 		"check": "prettier --check src/ tests/ && eslint src/ tests/",

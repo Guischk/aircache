@@ -23,8 +23,6 @@ const FILES_TO_CHECK = [
   "tests/api.test.ts",
   "tests/integration.test.ts",
   "tests/performance.test.ts",
-  "tests/redis-vs-airtable.benchmark.ts",
-  "src/api/routes.ts",
   "demo.ts"
 ];
 

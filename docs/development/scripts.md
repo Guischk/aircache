@@ -42,49 +42,22 @@ bun run test
 # Teste tous les fichiers dans tests/
 ```
 
-### `bun run test:api`
+### `bun run test:watch`
 
-Tests unitaires de l'API seulement
+Lance les tests en mode veille (watch mode)
 
 ```bash
-bun run test:api
-# Teste: tests/api.test.ts
+bun run test:watch
+# Relance les tests à chaque modification
 ```
 
-### `bun run test:integration`
+### `bun run benchmark`
 
-Tests d'intégration du système complet
-
-```bash
-bun run test:integration
-# Teste: tests/integration.test.ts
-```
-
-### `bun run test:performance`
-
-Benchmark de performances
+Benchmark de performances comparatif (SQLite vs Airtable)
 
 ```bash
-bun run test:performance
-# Génère: performance-report.md
-```
-
-### `bun run test:all`
-
-Suite complète de tests + rapports
-
-```bash
-bun run test:all
-# Lance tous les tests + benchmark + intégration
-```
-
-### `bun run benchmark:redis-vs-airtable`
-
-Benchmark comparatif Redis vs Airtable Direct
-
-```bash
-bun run benchmark:redis-vs-airtable
-# Génère: redis-vs-airtable-comparison.md
+bun run benchmark
+# Génère un rapport de performance dans la console
 ```
 
 ## 🛠️ Scripts utilitaires

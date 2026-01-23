@@ -2,7 +2,7 @@
  * Base Change Detector
  *
  * Detects when the Airtable base ID has changed and handles the necessary
- * reset of cached data, webhooks, and schema regeneration.
+ * reset of cached data and webhooks.
  */
 
 import { config } from "../config";
@@ -23,14 +23,11 @@ export interface BaseChangeResult {
  * This function:
  * 1. Compares the current AIRTABLE_BASE_ID with the stored one
  * 2. If different (or first initialization):
- *    - Regenerates schema.ts via airtable-types-gen
- *    - Regenerates mappings.json from Airtable Metadata API
  *    - Clears all cached data in v1/v2 databases
  *    - Clears webhook configuration
  *    - Stores the new base ID
  *
  * @returns BaseChangeResult with details about the change
- * @throws Error if regeneration fails (service cannot start with invalid schema)
  */
 export async function detectAndHandleBaseChange(): Promise<BaseChangeResult> {
 	const { sqliteService } = await import("./sqlite/index");
@@ -64,46 +61,25 @@ export async function detectAndHandleBaseChange(): Promise<BaseChangeResult> {
 			previousBaseId: storedBaseId,
 			newBaseId: currentBaseId,
 		});
-		logger.start("Resetting cached data and regenerating schema...");
+		logger.start("Resetting cached data...");
 	}
 
-	// Step 1: Regenerate schema.ts
-	logger.info("Regenerating Airtable schema (schema.ts)...");
-	const schemaSuccess = await regenerateSchema();
-	if (!schemaSuccess) {
-		throw new Error(
-			"Failed to regenerate Airtable schema. " +
-				"Please check your AIRTABLE_PERSONAL_TOKEN and AIRTABLE_BASE_ID. " +
-				"The service cannot start without a valid schema.",
-		);
-	}
-	logger.success("Schema regenerated successfully");
+	// Note: schema.ts and mappings.json regeneration is handled by the build process/startup script
+	// We assume they are up to date if the app is restarting with a new configuration.
 
-	// Step 2: Regenerate mappings.json
-	logger.info("Regenerating table mappings (mappings.json)...");
-	const mappingsSuccess = await regenerateMappings();
-	if (!mappingsSuccess) {
-		throw new Error(
-			"Failed to regenerate table mappings. " +
-				"Please check your Airtable API access. " +
-				"The service cannot start without valid mappings.",
-		);
-	}
-	logger.success("Mappings regenerated successfully");
-
-	// Step 3: Clear cached data (only if not first initialization)
+	// Step 1: Clear cached data (only if not first initialization)
 	if (!isFirstInitialization) {
 		logger.info("Clearing cached data from previous base...");
 		await sqliteService.clearAllCachedData();
 		logger.success("Cached data cleared");
 	}
 
-	// Step 4: Clear webhook metadata
+	// Step 2: Clear webhook metadata
 	logger.info("Clearing webhook configuration...");
 	await sqliteService.clearWebhookMetadata();
 	logger.success("Webhook configuration cleared");
 
-	// Step 5: Store the new base ID
+	// Step 3: Store the new base ID
 	sqliteService.setStoredBaseId(currentBaseId);
 
 	// Final log
@@ -122,31 +98,4 @@ export async function detectAndHandleBaseChange(): Promise<BaseChangeResult> {
 		currentBaseId,
 		isFirstInitialization,
 	};
-}
-
-/**
- * Regenerate schema.ts using airtable-types-gen
- */
-async function regenerateSchema(): Promise<boolean> {
-	try {
-		const { updateAirtableSchema } = await import("./airtable/schema-updater");
-		return await updateAirtableSchema();
-	} catch (error) {
-		logger.error("Error regenerating schema", error);
-		return false;
-	}
-}
-
-/**
- * Regenerate mappings.json from Airtable Metadata API
- */
-async function regenerateMappings(): Promise<boolean> {
-	try {
-		const { generateMappingsFile } = await import("./airtable/mapping-generator");
-		await generateMappingsFile();
-		return true;
-	} catch (error) {
-		logger.error("Error regenerating mappings", error);
-		return false;
-	}
 }
