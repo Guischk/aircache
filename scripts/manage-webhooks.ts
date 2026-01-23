@@ -121,57 +121,47 @@ async function main() {
 				const webhookEndpoint = `${targetUrl}/webhooks/airtable/refresh`;
 
 				console.log("🧪 Testing webhook endpoint\n");
-				console.log(`Target: ${webhookEndpoint}`);
-				console.log(
-					`Secret: ${config.webhookSecret.substring(0, 10)}... (${config.webhookSecret.length} chars)\n`,
-				);
+				console.log(`Target: ${webhookEndpoint}\n`);
 
-				// Vérifier que le secret est configuré
-				if (!config.webhookSecret) {
-					console.error("❌ WEBHOOK_SECRET not configured");
-					console.error("\nGenerate a secret with:");
-					console.error("  openssl rand -hex 32");
-					console.error("\nThen add to .env:");
-					console.error("  WEBHOOK_SECRET=<your_secret>");
+				// Récupérer le secret stocké dans la base de données
+				const { sqliteService } = await import("../src/lib/sqlite");
+				await sqliteService.connect();
+				const webhookConfig = await sqliteService.getWebhookConfig();
+
+				if (!webhookConfig) {
+					console.error("❌ No webhook configuration found in database");
+					console.error("\nCreate a webhook first with:");
+					console.error("  bun scripts/manage-webhooks.ts setup <public-url>");
 					process.exit(1);
 				}
 
-				// Créer un payload de test
+				console.log(`Webhook ID: ${webhookConfig.webhookId}`);
+				console.log(
+					`Secret: ${webhookConfig.macSecretBase64.substring(0, 10)}...\n`,
+				);
+
+				// Créer un payload de test (format notification Airtable)
 				const timestamp = new Date().toISOString();
 				const payload = {
+					base: { id: config.airtableBaseId },
+					webhook: { id: webhookConfig.webhookId },
 					timestamp,
-					baseTransactionNumber: 123,
-					webhookId: `test-${Date.now()}`,
-					payloads: [
-						{
-							baseTransactionNumber: 123,
-							timestamp,
-							changedTablesById: {
-								tblXXXXXXXXXXXXXX: {
-									changedRecordsById: {
-										recXXXXXXXXXXXXXX: null,
-									},
-								},
-							},
-						},
-					],
 				};
 
 				const payloadString = JSON.stringify(payload);
 
-				// Calculer la signature HMAC
-				const encoder = new TextEncoder();
-				const keyData = encoder.encode(config.webhookSecret);
-				const bodyData = encoder.encode(payloadString);
-
-				const hmac = new Bun.CryptoHasher("sha256", keyData)
-					.update(bodyData)
-					.digest("hex");
-
-				const signature = `sha256=${hmac}`;
+				// Calculer la signature HMAC exactement comme Airtable
+				const { calculateWebhookHmac } = await import(
+					"../src/lib/airtable/webhook-hmac"
+				);
+				const hash = calculateWebhookHmac(
+					webhookConfig.macSecretBase64,
+					payloadString,
+				);
+				const signature = `hmac-sha256=${hash}`;
 
 				console.log("📝 Sending test payload...");
-				console.log(`Signature: ${signature}\n`);
+				console.log(`Signature: ${signature.substring(0, 30)}...\n`);
 
 				try {
 					const response = await fetch(webhookEndpoint, {
@@ -210,16 +200,15 @@ async function main() {
 					if (response.status === 200) {
 						console.log("✅ Webhook test successful!");
 						console.log(
-							"\nThe endpoint is working correctly. Your WEBHOOK_SECRET is valid.",
+							"\nThe endpoint is working correctly and the signature is valid.",
 						);
 					} else if (response.status === 401) {
 						console.log("❌ Authentication failed (401)");
 						console.log("\nPossible causes:");
-						console.log("  - WEBHOOK_SECRET mismatch between local and server");
-						console.log("  - Invalid HMAC signature");
-						console.log(
-							"\nMake sure the server has the same WEBHOOK_SECRET in its environment.",
-						);
+						console.log("  - Secret mismatch between local DB and server");
+						console.log("  - Webhook was recreated with a different secret");
+						console.log("\nRecreate the webhook with:");
+						console.log("  bun scripts/manage-webhooks.ts setup <public-url>");
 					} else if (response.status === 429) {
 						console.log("⚠️  Rate limit exceeded (429)");
 						console.log(

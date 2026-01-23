@@ -1,6 +1,9 @@
 /**
  * Auto-setup webhooks on server startup
  * Automatically creates/configures Airtable webhooks if enabled
+ *
+ * Le secret HMAC (macSecretBase64) est généré par Airtable lors de la création
+ * du webhook et stocké automatiquement en SQLite.
  */
 
 import { config } from "../../config";
@@ -13,9 +16,10 @@ const logger = loggers.webhook;
  * Setup webhooks automatically on server startup
  * - Skips if WEBHOOK_AUTO_SETUP=false
  * - Skips if WEBHOOK_PUBLIC_URL not configured
- * - Skips if WEBHOOK_SECRET not configured
  * - Creates webhook if not exists
  * - Enables notifications
+ *
+ * Note: Le macSecretBase64 est généré par Airtable et stocké en SQLite
  */
 export async function autoSetupWebhooks(): Promise<void> {
 	// Check if auto-setup is enabled
@@ -30,13 +34,6 @@ export async function autoSetupWebhooks(): Promise<void> {
 			"Webhook auto-setup skipped: WEBHOOK_PUBLIC_URL not configured",
 		);
 		logger.warn("Set WEBHOOK_PUBLIC_URL to enable automatic webhook creation");
-		return;
-	}
-
-	// Check if webhook secret is configured
-	if (!config.webhookSecret) {
-		logger.warn("Webhook auto-setup skipped: WEBHOOK_SECRET not configured");
-		logger.warn("Generate a secret with: openssl rand -hex 32");
 		return;
 	}
 

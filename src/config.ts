@@ -22,7 +22,7 @@ export interface Config {
 	enableAttachmentDownload: boolean;
 
 	// Webhook settings
-	webhookSecret: string;
+	// Note: Le secret HMAC est stocké en SQLite (macSecretBase64 retourné par Airtable)
 	webhookRateLimit: number;
 	webhookTimestampWindow: number;
 	webhookIdempotencyTTL: number;
@@ -60,7 +60,7 @@ export function loadConfig(): Config {
 			process.env.ENABLE_ATTACHMENT_DOWNLOAD !== "false", // Default to true
 
 		// Webhook settings
-		webhookSecret: process.env.WEBHOOK_SECRET || "",
+		// Note: Le secret HMAC est stocké en SQLite (macSecretBase64 retourné par Airtable)
 		webhookRateLimit: Number.parseInt(process.env.WEBHOOK_RATE_LIMIT || "30"), // seconds
 		webhookTimestampWindow: Number.parseInt(
 			process.env.WEBHOOK_TIMESTAMP_WINDOW || "300",

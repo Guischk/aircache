@@ -1,117 +1,125 @@
 /**
  * 🔗 WEBHOOK HANDLERS
  * Gestion des webhooks Airtable avec refresh incrémental
+ *
+ * Flux correct selon la documentation Airtable :
+ * 1. Recevoir notification (ping) avec {base, webhook, timestamp}
+ * 2. Appeler GET /payloads pour récupérer les vraies données
+ * 3. Traiter les payloads et effectuer le refresh
+ *
+ * Référence: https://airtable.com/developers/web/api/webhooks-overview
  */
 
+import {
+	aggregatePayloadChanges,
+	fetchAllWebhookPayloads,
+} from "../../lib/airtable/webhook-payloads-client";
 import { loggers } from "../../lib/logger";
 
 const logger = loggers.webhook;
 
 /**
- * Structure du payload webhook Airtable
- * Docs: https://airtable.com/developers/web/api/webhooks-overview
- *
- * Note: Airtable envoie les changements dans un tableau `payloads`
- * Chaque payload contient les modifications pour une transaction
+ * Structure de la notification Airtable (ping)
+ * NOTE: Ne contient PAS les données de changement, juste un signal
  */
-interface AirtableWebhookNotification {
+export interface AirtableWebhookNotification {
+	base?: { id: string };
+	webhook?: { id: string };
 	timestamp: string;
-	baseTransactionNumber?: number;
-	webhookId?: string;
-
-	// Les changements sont dans un tableau de payloads
-	payloads?: Array<{
-		baseTransactionNumber: number;
-		timestamp: string;
-		changedTablesById?: {
-			[tableId: string]: {
-				createdRecordsById?: { [recordId: string]: null };
-				changedRecordsById?: { [recordId: string]: null };
-				destroyedRecordIds?: string[];
-			};
-		};
-	}>;
-
-	// Support aussi le format direct pour les tests/webhooks custom
-	changedTablesById?: {
-		[tableId: string]: {
-			createdRecordsById?: { [recordId: string]: null };
-			changedRecordsById?: { [recordId: string]: null };
-			destroyedRecordIds?: string[];
-		};
-	};
 }
 
 /**
  * 🔗 HANDLER: Webhook Airtable
  * Route: POST /webhooks/airtable/refresh
  *
- * Stratégie:
- * 1. Si changedTablesById présent → Refresh incrémental
- * 2. Sinon → Fallback refresh complet
+ * Reçoit une notification (ping) d'Airtable et déclenche le refresh approprié
  */
 export async function handleAirtableWebhook(
 	payload: AirtableWebhookNotification,
 ): Promise<Response> {
 	try {
-		logger.info("Received Airtable webhook", {
+		const webhookId = payload.webhook?.id;
+
+		logger.info("Received Airtable webhook notification", {
 			timestamp: payload.timestamp,
-			transaction: payload.baseTransactionNumber,
+			webhookId: webhookId || "unknown",
+			baseId: payload.base?.id || "unknown",
 		});
 
-		// 1. Vérifier idempotency (éviter double processing)
-		if (payload.webhookId) {
-			const { sqliteService } = await import("../../lib/sqlite");
-			const alreadyProcessed = await sqliteService.isWebhookProcessed(
-				payload.webhookId,
-			);
-
-			if (alreadyProcessed) {
-				logger.info("Webhook already processed (skipping)", {
-					webhookId: payload.webhookId,
-				});
-				return new Response(
-					JSON.stringify({
-						status: "skipped",
-						reason: "Already processed",
-						webhookId: payload.webhookId,
-					}),
-					{
-						status: 200,
-						headers: { "Content-Type": "application/json" },
-					},
-				);
-			}
+		// 1. Vérifier qu'on a un webhook ID pour récupérer les payloads
+		if (!webhookId) {
+			logger.warn("No webhook ID in notification, triggering full refresh");
+			return triggerFullRefresh("No webhook ID provided");
 		}
 
-		// 2. Extraire changedTablesById (support format Airtable + format test)
-		// Airtable envoie dans payloads[0].changedTablesById
-		// Nos tests utilisent le format direct pour simplicité
-		const changedTablesById =
-			payload.payloads?.[0]?.changedTablesById || payload.changedTablesById;
+		// 2. Vérifier idempotency avec une clé unique
+		const { sqliteService } = await import("../../lib/sqlite");
+		const idempotencyKey = `${webhookId}-${payload.timestamp}`;
+		const alreadyProcessed =
+			await sqliteService.isWebhookProcessed(idempotencyKey);
 
-		// 3. Décider du type de refresh
-		const hasChangedTables =
-			changedTablesById && Object.keys(changedTablesById).length > 0;
-
-		const refreshType: "incremental" | "full" = hasChangedTables
-			? "incremental"
-			: "full";
-
-		logger.info("Triggering refresh (async)", { refreshType });
-
-		// 4. Marquer le webhook comme traité AVANT le refresh (éviter race condition)
-		if (payload.webhookId) {
-			const { sqliteService } = await import("../../lib/sqlite");
-			await sqliteService.markWebhookProcessed(
-				payload.webhookId,
-				refreshType,
-				{ pending: true }, // Stats seront mis à jour après refresh
+		if (alreadyProcessed) {
+			logger.info("Webhook already processed (skipping)", { idempotencyKey });
+			return new Response(
+				JSON.stringify({
+					status: "skipped",
+					reason: "Already processed",
+					webhookId,
+				}),
+				{
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				},
 			);
 		}
 
-		// 5. Trigger async refresh (ne pas attendre)
-		// Utiliser Promise.resolve().then() pour éviter le blocage de la réponse
+		// 3. Récupérer les payloads depuis l'API Airtable
+		logger.info("Fetching payloads from Airtable API...");
+		let payloads: Awaited<ReturnType<typeof fetchAllWebhookPayloads>>;
+		try {
+			payloads = await fetchAllWebhookPayloads(webhookId);
+		} catch (error) {
+			logger.error("Failed to fetch payloads from Airtable:", error);
+			// En cas d'erreur, on fait un full refresh par sécurité
+			return triggerFullRefresh("Failed to fetch payloads");
+		}
+
+		if (payloads.length === 0) {
+			logger.info("No payloads to process");
+			return new Response(
+				JSON.stringify({
+					status: "success",
+					message: "No payloads to process",
+					webhookId,
+				}),
+				{
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				},
+			);
+		}
+
+		// 4. Agréger les changements de tous les payloads
+		const aggregatedChanges = aggregatePayloadChanges(payloads);
+		const tablesChanged = Object.keys(aggregatedChanges).length;
+
+		// 5. Décider du type de refresh
+		const refreshType: "incremental" | "full" =
+			tablesChanged > 0 ? "incremental" : "full";
+
+		logger.info("Processing webhook", {
+			refreshType,
+			tablesChanged,
+			payloadsProcessed: payloads.length,
+		});
+
+		// 6. Marquer comme traité AVANT le refresh
+		await sqliteService.markWebhookProcessed(idempotencyKey, refreshType, {
+			payloadsCount: payloads.length,
+			tablesChanged,
+		});
+
+		// 7. Trigger async refresh (ne pas attendre)
 		Promise.resolve().then(async () => {
 			try {
 				const { SQLiteBackend } = await import(
@@ -119,9 +127,41 @@ export async function handleAirtableWebhook(
 				);
 				const backend = new SQLiteBackend();
 
-				if (hasChangedTables && changedTablesById) {
+				if (refreshType === "incremental" && tablesChanged > 0) {
 					logger.start("Running incremental refresh...");
-					await backend.incrementalRefresh(changedTablesById);
+
+					// Convertir le format agrégé vers le format attendu par incrementalRefresh
+					const changesForRefresh: {
+						[tableId: string]: {
+							createdRecordsById?: { [recordId: string]: null };
+							changedRecordsById?: { [recordId: string]: null };
+							destroyedRecordIds?: string[];
+						};
+					} = {};
+
+					for (const [tableId, changes] of Object.entries(aggregatedChanges)) {
+						changesForRefresh[tableId] = {
+							destroyedRecordIds: changes.destroyedRecordIds,
+						};
+
+						// Convertir les arrays d'IDs en objets
+						if (changes.createdRecordIds.length > 0) {
+							const created: { [recordId: string]: null } = {};
+							for (const id of changes.createdRecordIds) {
+								created[id] = null;
+							}
+							changesForRefresh[tableId].createdRecordsById = created;
+						}
+						if (changes.changedRecordIds.length > 0) {
+							const changed: { [recordId: string]: null } = {};
+							for (const id of changes.changedRecordIds) {
+								changed[id] = null;
+							}
+							changesForRefresh[tableId].changedRecordsById = changed;
+						}
+					}
+
+					await backend.incrementalRefresh(changesForRefresh);
 				} else {
 					logger.start("Running full refresh...");
 					await backend.refreshData();
@@ -133,12 +173,14 @@ export async function handleAirtableWebhook(
 			}
 		});
 
-		// 6. Retourner immédiatement succès (refresh en cours en background)
+		// 8. Retourner succès immédiatement
 		return new Response(
 			JSON.stringify({
 				status: "success",
 				refreshType,
 				message: `${refreshType} refresh triggered`,
+				payloadsProcessed: payloads.length,
+				tablesChanged,
 				timestamp: new Date().toISOString(),
 			}),
 			{
@@ -159,4 +201,37 @@ export async function handleAirtableWebhook(
 			},
 		);
 	}
+}
+
+/**
+ * Helper pour déclencher un full refresh
+ */
+async function triggerFullRefresh(reason: string): Promise<Response> {
+	const logger = loggers.webhook;
+
+	Promise.resolve().then(async () => {
+		try {
+			const { SQLiteBackend } = await import(
+				"../../worker/backends/sqlite-backend"
+			);
+			const backend = new SQLiteBackend();
+			await backend.refreshData();
+			logger.success("Full refresh completed");
+		} catch (error) {
+			logger.error("Full refresh error:", error);
+		}
+	});
+
+	return new Response(
+		JSON.stringify({
+			status: "success",
+			refreshType: "full",
+			message: `Full refresh triggered: ${reason}`,
+			timestamp: new Date().toISOString(),
+		}),
+		{
+			status: 200,
+			headers: { "Content-Type": "application/json" },
+		},
+	);
 }

@@ -25,8 +25,13 @@ interface AppBindings {
 	worker?: Worker;
 }
 
+interface AppVariables {
+	webhookBody?: Record<string, unknown>;
+}
+
 type AppContext = {
 	Bindings: AppBindings;
+	Variables: AppVariables;
 };
 
 /**

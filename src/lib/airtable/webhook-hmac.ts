@@ -3,6 +3,15 @@
  * Garantit que le même algorithme est utilisé pour la création et la validation
  *
  * Référence: https://airtable.com/developers/web/api/webhooks-overview#hmac-validation
+ *
+ * Algorithme exact de la documentation Airtable :
+ * ```javascript
+ * const macSecretDecoded = Buffer.from(macSecretBase64FromCreate, 'base64');
+ * const body = Buffer.from(JSON.stringify(webhookNotificationDeliveryPayload), 'utf8');
+ * const hmac = require('crypto').createHmac('sha256', macSecretDecoded);
+ * hmac.update(body.toString(), 'ascii');
+ * const expectedContentHmac = 'hmac-sha256=' + hmac.digest('hex');
+ * ```
  */
 
 import { createHmac } from "node:crypto";
@@ -25,9 +34,10 @@ export function calculateWebhookHmac(
 	// 2. Convertir le body en Buffer UTF-8
 	const bodyBuffer = Buffer.from(body, "utf8");
 
-	// 3. Calculer le HMAC exactement comme Airtable
+	// 3. Calculer le HMAC EXACTEMENT comme Airtable
+	// IMPORTANT: Airtable utilise body.toString('ascii') pas le buffer directement
 	const hmac = createHmac("sha256", new Uint8Array(secretDecoded));
-	hmac.update(new Uint8Array(bodyBuffer));
+	hmac.update(bodyBuffer.toString("ascii"));
 
 	// 4. Retourner le hash en hex (sans préfixe)
 	return hmac.digest("hex");

@@ -200,6 +200,7 @@ aircache/
 - Use dynamic table references in tests
 - Sensitive files are gitignored: `.env`, `data/`, `*.cache.json`, `src/lib/airtable/schema.ts`
 - Bearer token authentication required for all `/api/*` endpoints (except `/health`)
+- Never perform commit on your own
 
 ## API Response Format
 

@@ -5,7 +5,10 @@
 
 import type { Hono } from "hono";
 import type { AppContext } from "../app";
-import { handleAirtableWebhook } from "../handlers/webhooks";
+import {
+	type AirtableWebhookNotification,
+	handleAirtableWebhook,
+} from "../handlers/webhooks";
 import {
 	validateWebhookSignature,
 	webhookRateLimit,
@@ -19,7 +22,9 @@ export function setupWebhookRoutes(app: Hono<AppContext>) {
 		validateWebhookSignature, // 1. Valider HMAC
 		webhookRateLimit, // 2. Rate limiting
 		async (c) => {
-			const payload = c.get("webhookBody"); // Récupéré par le middleware
+			const payload = c.get(
+				"webhookBody",
+			) as unknown as AirtableWebhookNotification;
 			const response = await handleAirtableWebhook(payload);
 			return convertResponseToHono(response, c);
 		},
