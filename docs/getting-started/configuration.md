@@ -1,5 +1,7 @@
 # Configuration Guide
 
+Complete reference for all Aircache configuration options.
+
 ## Environment Variables
 
 ### Required Variables
@@ -10,192 +12,263 @@
 | `AIRTABLE_BASE_ID` | Airtable base identifier | `appXyz789...` |
 | `BEARER_TOKEN` | API authentication token | `your-secret-token` |
 
-### Optional Variables
+### Server Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `3000` | Server port |
-| `REFRESH_INTERVAL` | `86400` | Cache refresh interval (seconds) |
-| `STORAGE_PATH` | `./data/attachments` | Attachments storage directory |
-| `SQLITE_PATH` | `./data` | SQLite database directory |
+
+### Sync Mode Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SYNC_MODE` | `polling` | Sync mode: `polling`, `webhook`, or `manual` |
+| `REFRESH_INTERVAL` | `86400` | Polling interval in seconds (24h default) |
+| `FAILSAFE_REFRESH_INTERVAL` | `86400` | Failsafe refresh for webhook mode |
+
+### Webhook Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WEBHOOK_PUBLIC_URL` | - | Public URL (required for webhook mode) |
+| `WEBHOOK_AUTO_SETUP` | `true` | Auto-create webhook on startup |
+| `WEBHOOK_RATE_LIMIT` | `30` | Min seconds between webhook processing |
+| `WEBHOOK_TIMESTAMP_WINDOW` | `300` | Max age of webhook timestamp |
+| `WEBHOOK_IDEMPOTENCY_TTL` | `86400` | Deduplication cache duration |
+
+### Storage Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SQLITE_V1_PATH` | `data/aircache-v1.sqlite` | Primary database path |
+| `SQLITE_V2_PATH` | `data/aircache-v2.sqlite` | Secondary database path |
+| `SQLITE_METADATA_PATH` | `data/metadata.sqlite` | Metadata database path |
+| `STORAGE_PATH` | `./data/attachments` | Attachment storage directory |
 | `ENABLE_ATTACHMENT_DOWNLOAD` | `true` | Enable attachment downloads |
+
+### Logging Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CONSOLA_LEVEL` | `3` | Log level (0=silent, 3=info, 6=debug) |
+| `CONSOLA_FANCY` | `true` | Enable colored output |
+
+## Sync Modes Explained
+
+### Polling Mode (Default)
+
+Regular full cache refresh at a specified interval.
+
+```bash
+SYNC_MODE=polling
+REFRESH_INTERVAL=86400  # 24 hours
+```
+
+**Best for:**
+- Simple deployments
+- Infrequently changing data
+- Environments without public URLs
+
+### Webhook Mode
+
+Real-time incremental updates via Airtable webhooks.
+
+```bash
+SYNC_MODE=webhook
+WEBHOOK_PUBLIC_URL=https://aircache.yourcompany.com
+WEBHOOK_AUTO_SETUP=true
+FAILSAFE_REFRESH_INTERVAL=86400
+```
+
+**Best for:**
+- Low-latency requirements
+- Frequently changing data
+- Production environments
+
+**Requirements:**
+- Public HTTPS URL
+- Airtable token with `webhook:manage` scope
+
+### Manual Mode
+
+No automatic refresh. Only refreshes via API call.
+
+```bash
+SYNC_MODE=manual
+```
+
+**Best for:**
+- Full control over refresh timing
+- Batch processing workflows
+- Development and testing
+
+Trigger refresh manually:
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  https://your-aircache.com/api/refresh
+```
 
 ## Configuration Examples
 
-### Development Environment
+### Development
+
 ```bash
-# .env.development
-AIRTABLE_PERSONAL_TOKEN=patDev123...
-AIRTABLE_BASE_ID=appDev789...
+# .env
+AIRTABLE_PERSONAL_TOKEN=pat_dev_token
+AIRTABLE_BASE_ID=app_dev_base
 BEARER_TOKEN=dev-token
+
 PORT=3000
-REFRESH_INTERVAL=3600
-ENABLE_ATTACHMENT_DOWNLOAD=false
-STORAGE_PATH=./dev-data/attachments
-SQLITE_PATH=./dev-data
+SYNC_MODE=polling
+REFRESH_INTERVAL=300  # 5 minutes for faster iteration
+
+ENABLE_ATTACHMENT_DOWNLOAD=false  # Skip downloads for speed
+CONSOLA_LEVEL=5  # Verbose logging
 ```
 
-### Production Environment
+### Production (Polling)
+
 ```bash
-# .env.production
-AIRTABLE_PERSONAL_TOKEN=patProd123...
-AIRTABLE_BASE_ID=appProd789...
+# .env
+AIRTABLE_PERSONAL_TOKEN=pat_prod_token
+AIRTABLE_BASE_ID=app_prod_base
+BEARER_TOKEN=secure-production-token-generated-with-openssl
+
+PORT=3000
+SYNC_MODE=polling
+REFRESH_INTERVAL=86400  # 24 hours
+
+ENABLE_ATTACHMENT_DOWNLOAD=true
+STORAGE_PATH=/var/lib/aircache/attachments
+CONSOLA_LEVEL=3  # Info level
+CONSOLA_FANCY=false  # Plain logs for production
+```
+
+### Production (Webhook)
+
+```bash
+# .env
+AIRTABLE_PERSONAL_TOKEN=pat_prod_token
+AIRTABLE_BASE_ID=app_prod_base
 BEARER_TOKEN=secure-production-token
+
 PORT=3000
-REFRESH_INTERVAL=86400
+SYNC_MODE=webhook
+WEBHOOK_PUBLIC_URL=https://aircache.yourcompany.com
+WEBHOOK_AUTO_SETUP=true
+FAILSAFE_REFRESH_INTERVAL=86400
+
 ENABLE_ATTACHMENT_DOWNLOAD=true
-STORAGE_PATH=/var/lib/aircache/attachments
-SQLITE_PATH=/var/lib/aircache/db
 ```
 
-### Testing Environment
+### Railway Deployment
+
 ```bash
-# .env.test
-AIRTABLE_PERSONAL_TOKEN=patTest123...
-AIRTABLE_BASE_ID=appTest789...
-BEARER_TOKEN=test-token
-PORT=3001
-REFRESH_INTERVAL=300
-ENABLE_ATTACHMENT_DOWNLOAD=false
-STORAGE_PATH=./test-data/attachments
-SQLITE_PATH=./test-data
+# Set in Railway dashboard
+AIRTABLE_PERSONAL_TOKEN=pat_xxx
+AIRTABLE_BASE_ID=appxxx
+BEARER_TOKEN=secure-token
+
+SYNC_MODE=webhook
+WEBHOOK_PUBLIC_URL=${{RAILWAY_PUBLIC_DOMAIN}}
+WEBHOOK_AUTO_SETUP=true
 ```
 
-## Airtable Configuration
+## Airtable Token Configuration
 
-### Getting Your API Token
+### Required Scopes
 
-1. Go to https://airtable.com/create/tokens
+| Scope | Required For |
+|-------|--------------|
+| `data.records:read` | Reading table data |
+| `schema.bases:read` | Type generation |
+| `webhook:manage` | Webhook mode only |
+
+### Creating Your Token
+
+1. Go to [airtable.com/create/tokens](https://airtable.com/create/tokens)
 2. Click "Create new token"
-3. Give it a descriptive name (e.g., "Aircache Production")
-4. Set appropriate scopes:
-   - `data.records:read` (required)
-   - `data.recordComments:read` (if using comments)
-   - `schema.bases:read` (for schema introspection)
+3. Name: `Aircache Production` (or similar)
+4. Add required scopes
+5. Add your base to the access list
+6. Create and securely store the token
 
-### Finding Your Base ID
+## Security Best Practices
 
-1. Go to https://airtable.com/api
-2. Select your base
-3. The base ID is shown in the URL and documentation (starts with `app`)
-
-### Base Requirements
-
-Your Airtable base should have:
-- At least one table with data
-- Consistent field naming (avoid special characters)
-- Proper field types configured
-
-## Performance Tuning
-
-### Refresh Interval
-
-Choose based on your use case:
-- **Real-time needs**: 300-900 seconds (5-15 minutes)
-- **Regular updates**: 3600-7200 seconds (1-2 hours)
-- **Daily refresh**: 86400 seconds (24 hours)
-- **Weekly refresh**: 604800 seconds (7 days)
-
-### Attachment Downloads
-
-Disable for better performance in development:
-```bash
-ENABLE_ATTACHMENT_DOWNLOAD=false
-```
-
-Keep enabled in production if you need file access:
-```bash
-ENABLE_ATTACHMENT_DOWNLOAD=true
-```
-
-### Storage Paths
-
-#### Development
-Use relative paths for easy cleanup:
-```bash
-STORAGE_PATH=./data/attachments
-SQLITE_PATH=./data
-```
-
-#### Production
-Use absolute paths with proper permissions:
-```bash
-STORAGE_PATH=/var/lib/aircache/attachments
-SQLITE_PATH=/var/lib/aircache/db
-```
-
-## Security Configuration
-
-### API Authentication
-
-The `BEARER_TOKEN` secures your API endpoints. Use a strong, unique token:
+### Generate Secure Tokens
 
 ```bash
-# Generate a secure token
+# Generate a secure BEARER_TOKEN
 openssl rand -hex 32
 ```
 
 ### File Permissions
 
-Ensure proper file system permissions:
 ```bash
-# Create directories with correct permissions
-mkdir -p /var/lib/aircache/{db,attachments}
-chmod 750 /var/lib/aircache
-chmod 750 /var/lib/aircache/db
-chmod 750 /var/lib/aircache/attachments
+# Secure your .env file
+chmod 600 .env
 
-# Set ownership (if running as specific user)
-chown -R aircache:aircache /var/lib/aircache
+# Secure data directory
+chmod 750 data/
 ```
 
 ### Network Security
 
-For production deployment:
-- Use HTTPS reverse proxy (nginx, Cloudflare)
-- Implement rate limiting
-- Consider IP whitelisting for admin endpoints
+- Always use HTTPS in production
+- Consider IP whitelisting for the API
+- Use a reverse proxy (nginx, Cloudflare) for rate limiting
 
 ## Validation
 
 Verify your configuration:
 
 ```bash
-# Check environment variables
+# Check environment variables are loaded
 bun -e "console.log(process.env.AIRTABLE_BASE_ID)"
 
-# Test Airtable connection
-curl -H "Authorization: Bearer $BEARER_TOKEN" \
-     http://localhost:3000/health
+# Test the health endpoint
+curl http://localhost:3000/health
 
-# Verify data directory permissions
-ls -la data/
+# Test authenticated endpoint
+curl -H "Authorization: Bearer $BEARER_TOKEN" \
+  http://localhost:3000/api/stats
 ```
 
 ## Troubleshooting
 
-### Common Configuration Issues
+### Missing Environment Variables
 
-1. **Invalid Airtable Token**
-   ```
-   Error: Invalid API token
-   ```
-   Solution: Verify token permissions and base access
+```
+Error: Missing required environment variables
+```
 
-2. **Base Not Found**
-   ```
-   Error: Base not found
-   ```
-   Solution: Check `AIRTABLE_BASE_ID` format (should start with `app`)
+Ensure all required variables are set in your `.env` file or environment.
 
-3. **Permission Denied**
-   ```
-   Error: EACCES: permission denied
-   ```
-   Solution: Check file system permissions for storage paths
+### Invalid Sync Mode
 
-4. **Port In Use**
-   ```
-   Error: EADDRINUSE: port already in use
-   ```
-   Solution: Change `PORT` or stop conflicting service
+```
+Error: Invalid SYNC_MODE: xyz
+```
+
+`SYNC_MODE` must be one of: `polling`, `webhook`, `manual`
+
+### Webhook URL Required
+
+```
+Error: WEBHOOK_PUBLIC_URL is required when SYNC_MODE=webhook
+```
+
+Set `WEBHOOK_PUBLIC_URL` to your public HTTPS URL, or switch to `polling` mode.
+
+### Permission Denied
+
+```
+Error: EACCES: permission denied
+```
+
+Check file system permissions for storage paths:
+
+```bash
+mkdir -p data
+chmod 755 data
+```

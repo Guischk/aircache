@@ -2,184 +2,266 @@
 
 ## System Overview
 
-Aircache is an Airtable cache service that syncs data from Airtable to SQLite using a dual-database strategy for zero-downtime updates. The system provides a high-performance REST API for accessing cached Airtable data.
+Aircache is a high-performance caching layer that syncs data from Airtable to local SQLite databases. It uses a dual-database strategy for zero-downtime updates and provides a REST API that's **240x faster** than direct Airtable API calls.
+
+```
+                                    ┌─────────────────────────────────┐
+                                    │          Aircache               │
+┌─────────────┐                     │  ┌─────────────────────────┐   │
+│   Client    │ ───── REST API ──── │  │       Hono Server       │   │
+│ Application │                     │  └───────────┬─────────────┘   │
+└─────────────┘                     │              │                  │
+                                    │  ┌───────────┴─────────────┐   │
+                                    │  │    SQLite Databases     │   │
+                                    │  │   ┌─────┐    ┌─────┐    │   │
+                                    │  │   │ v1  │◄──►│ v2  │    │   │
+                                    │  │   └─────┘    └─────┘    │   │
+                                    │  └─────────────────────────┘   │
+                                    │              ▲                  │
+┌─────────────┐                     │              │                  │
+│  Airtable   │ ◄─── Sync Worker ── │  ┌──────────┴──────────┐      │
+│    API      │                     │  │   Background Worker   │      │
+└─────────────┘                     │  └─────────────────────┘      │
+                                    └─────────────────────────────────┘
+```
 
 ## Core Components
 
-### Main Process (`index.ts`)
-- Manages a worker that refreshes data periodically
-- Coordinates between server and background sync operations
-- Handles graceful shutdown and error recovery
+### 1. HTTP Server (`src/server/index.ts`)
 
-### Server (`src/server/index.ts`)
-- Main server entry point and configuration
-- Handles HTTP requests and API routing
-- Provides real-time access to cached data
+- Built with [Hono](https://hono.dev) framework on Bun.serve()
+- Handles all API requests
+- Bearer token authentication
+- CORS support for cross-origin access
 
-### Worker (`src/worker/index.ts`)
-- Handles the actual data sync from Airtable to SQLite
-- Runs in background to avoid blocking main server
-- Manages attachment downloads and file processing
+### 2. SQLite Service (`src/lib/sqlite/index.ts`)
 
-### Airtable Client (`src/lib/airtable/index.ts`)
+- Manages dual SQLite databases
+- Handles read/write operations
+- Provides atomic database switching
+- Stores attachments metadata
+
+### 3. Background Worker (`src/worker/index.ts`)
+
+- Runs data sync in background
+- Fetches data from Airtable API
+- Downloads attachments
+- Manages refresh scheduling
+
+### 4. Airtable Client (`src/lib/airtable/index.ts`)
+
 - Configured Airtable base connection
-- Handles API authentication and rate limiting
-- Provides typed access to Airtable data
+- Handles API authentication
+- Rate limiting compliance
+- Type-safe data access via Zod schemas
 
-### SQLite Helpers (`src/lib/sqlite/helpers.ts`)
-- Database management and versioning utilities
-- Handles dual database switching logic
-- Manages schema creation and migrations
+## Dual-Database Strategy
 
-### Schema (`src/lib/airtable/schema.ts`)
-- Generated Zod schemas for all Airtable tables
-- Provides type safety for data operations
-- Auto-generated from Airtable base schema
+The key innovation in Aircache is the dual-database strategy that enables zero-downtime updates.
 
-## Key Architecture Patterns
-
-### Dual Database Strategy
-
-The system uses `v1` and `v2` SQLite databases to enable atomic cache updates:
+### How It Works
 
 ```
 ┌─────────────┐    ┌─────────────┐
 │   Active    │    │  Inactive   │
 │ Database v1 │    │ Database v2 │
 │             │    │             │
-│ Serves      │    │ Being       │
-│ Current     │    │ Updated     │
-│ Data        │    │ with Fresh  │
-│             │    │ Data        │
+│  Serves     │    │   Being     │
+│  Current    │    │  Updated    │
+│  Requests   │    │  with Fresh │
+│             │    │    Data     │
 └─────────────┘    └─────────────┘
        │                  │
-       └─────────────────→│ (Atomic Flip)
-                          ▼
+       └────────┬─────────┘
+                │
+         Atomic Switch
+                │
+                ▼
 ┌─────────────┐    ┌─────────────┐
 │  Inactive   │    │   Active    │
 │ Database v1 │    │ Database v2 │
+│             │    │             │
+│  Ready for  │    │   Serves    │
+│  Next Sync  │    │   Fresh     │
+│             │    │    Data     │
+└─────────────┘    └─────────────┘
 ```
 
-**Benefits:**
-- No downtime during cache refresh
-- Prevents serving stale data during sync
-- Atomic switching ensures data consistency
-- Rollback capability in case of sync failures
+### Benefits
 
-### Worker-Based Refresh
+1. **Zero Downtime** - API never returns stale or partial data
+2. **Atomic Updates** - Database pointer switches instantly
+3. **Consistency** - All requests see the same data version
+4. **Rollback Ready** - Previous database available if needed
 
-Data refresh runs in a Web Worker to avoid blocking the main thread during large data sync operations:
+## Sync Modes
 
-```
-Main Process          Worker Process
-┌─────────────┐      ┌─────────────┐
-│   Server    │      │   Refresh   │
-│             │      │   Worker    │
-│ Serves API  │      │             │
-│ Requests    │      │ - Fetches   │
-│             │      │   Airtable  │
-│ Handles     │      │ - Updates   │
-│ Real-time   │      │   SQLite    │
-│ Traffic     │      │ - Downloads │
-│             │      │   Files     │
-└─────────────┘      └─────────────┘
-```
-
-### File-Based Locking
-
-Uses file system locks to prevent concurrent refresh operations across multiple processes/workers:
+### Polling Mode
 
 ```
-Process A              Process B
-    │                      │
-    ▼                      ▼
-┌─────────────┐      ┌─────────────┐
-│ Acquire     │      │ Try to      │
-│ Lock File   │      │ Acquire     │
-│             │      │ Lock File   │
-│ ✅ Success  │      │             │
-└─────────────┘      │ ❌ Blocked  │
-    │                │             │
-    ▼                │ Waits...    │
-┌─────────────┐      │             │
-│ Perform     │      │             │
-│ Refresh     │      │             │
-│ Operation   │      │             │
-└─────────────┘      │             │
-    │                │             │
-    ▼                │             │
-┌─────────────┐      │             │
-│ Release     │      │             │
-│ Lock File   │      │             │
-└─────────────┘      └─────────────┘
-                           │
-                           ▼
-                     ┌─────────────┐
-                     │ Acquire     │
-                     │ Lock File   │
-                     │             │
-                     │ ✅ Success  │
-                     └─────────────┘
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   Timer     │───▶│   Worker    │───▶│  Airtable   │
+│  Interval   │    │             │    │    API      │
+└─────────────┘    └─────────────┘    └─────────────┘
+                          │
+                          ▼
+                   ┌─────────────┐
+                   │   Update    │
+                   │  Inactive   │
+                   │    DB       │
+                   └─────────────┘
 ```
+
+- Full refresh at configured interval
+- Default: every 24 hours
+- Simple and reliable
+
+### Webhook Mode
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  Airtable   │───▶│  Webhook    │───▶│   Worker    │
+│  Webhook    │    │  Handler    │    │             │
+└─────────────┘    └─────────────┘    └─────────────┘
+                          │
+                          ▼
+                   ┌─────────────┐
+                   │ Incremental │
+                   │   Update    │
+                   └─────────────┘
+```
+
+- Real-time updates (~500ms latency)
+- HMAC signature validation
+- Automatic webhook setup
+- Failsafe full refresh
+
+### Manual Mode
+
+- No automatic sync
+- Trigger via `POST /api/refresh`
+- Full control over timing
 
 ## Data Flow
 
-1. **Initialization**: Main process starts worker and schedules periodic refreshes
-2. **Lock Acquisition**: Worker acquires file-based lock to prevent concurrent operations
-3. **Data Fetching**: Worker fetches all data from configured Airtable tables
-4. **Data Processing**: Data is flattened using `airtable-types-gen` and validated
-5. **Database Update**: Data is stored in inactive SQLite database
-6. **Attachment Sync**: Attachments are downloaded and processed in parallel
-7. **Atomic Switch**: After all data is synced, active database pointer is flipped
-8. **Cleanup**: Old database is prepared for next refresh cycle
-9. **Lock Release**: File lock is released, allowing other processes to refresh
+### Initial Startup
+
+1. Server starts and initializes SQLite databases
+2. Worker begins initial sync
+3. All tables fetched from Airtable
+4. Data stored in inactive database
+5. Attachments downloaded (if enabled)
+6. Database pointer switched to make data active
+7. API ready to serve requests
+
+### Ongoing Sync (Polling)
+
+1. Timer triggers at configured interval
+2. Worker acquires lock (prevents concurrent syncs)
+3. Fresh data fetched from Airtable
+4. Inactive database cleared and populated
+5. Attachments updated (smart deduplication)
+6. Atomic switch to new data
+7. Old database prepared for next cycle
+
+### Webhook Sync
+
+1. Airtable sends webhook notification
+2. HMAC signature validated
+3. Rate limiting applied
+4. Changed records identified
+5. Incremental update applied
+6. Failsafe timer reset
+
+## API Architecture
+
+### Route Structure
+
+```
+/
+├── /health                          # Public health check
+├── /webhooks/airtable/refresh       # Webhook endpoint (HMAC auth)
+└── /api/                            # Bearer token protected
+    ├── /tables                      # List tables
+    ├── /tables/:table               # Get records
+    ├── /tables/:table/:id           # Get single record
+    ├── /stats                       # Cache statistics
+    ├── /refresh                     # Trigger refresh
+    ├── /attachments/...             # Serve attachments
+    ├── /mappings                    # Field mappings
+    └── /types                       # TypeScript types
+```
+
+### Middleware Stack
+
+1. **Logger** - Request logging
+2. **CORS** - Cross-origin support
+3. **Bearer Auth** - Token validation (except /health)
+4. **Route Handlers** - Business logic
 
 ## Performance Optimizations
 
-### Batch Processing
-- Records are processed in chunks of 50 for optimal performance
-- Single transaction per batch reduces I/O overhead
-- Prepared statements are reused within batches
+### Database
 
-### Attachment Management
-- Deterministic file naming prevents duplicate downloads
-- Existence checks skip already downloaded files
-- Connection pooling limits concurrent downloads
+- **Batch Processing** - Records inserted in chunks of 50
+- **Prepared Statements** - Reused within transactions
+- **Strategic Indexes** - On frequently queried fields
+- **WAL Mode** - For concurrent read/write
 
-### Database Indexes
-- Strategic indexes on frequently queried fields
-- Optimized for both read and write operations
-- Minimal overhead during data refresh
+### Attachments
 
-## Security Considerations
+- **Deterministic Naming** - URL hash prevents duplicates
+- **Existence Checks** - Skip already downloaded files
+- **Size Validation** - Re-download if size mismatch
+- **Connection Pool** - Limit concurrent downloads (5 max)
+
+### API
+
+- **Response Caching** - Static responses cached
+- **Efficient Queries** - Optimized SQL generation
+- **Minimal Overhead** - Hono's lightweight design
+
+## Security Model
+
+### Authentication
+
+- Bearer token required for `/api/*` endpoints
+- HMAC-SHA256 for webhook validation
+- No auth required for `/health`
 
 ### Data Protection
-- Sensitive configuration files are git-ignored
-- Bearer token authentication for API access
-- No sensitive data logged in production
 
-### File System Security
-- Attachment storage isolated in designated directory
-- File permissions properly configured
-- Path traversal protection
+- Sensitive files git-ignored
+- No secrets in logs
+- Environment variable configuration
 
-## Scalability Considerations
+### Network
 
-### Horizontal Scaling
-- File-based locking enables multi-instance deployment
-- Shared storage required for attachment files
-- Database files can be replicated across instances
+- HTTPS recommended in production
+- CORS configurable
+- Rate limiting via webhooks
 
-### Vertical Scaling
-- Memory usage scales with dataset size
-- CPU usage optimized through batch processing
-- Storage requirements grow with data and attachments
+## Scalability
+
+### Horizontal
+
+- Multiple instances share file storage
+- File-based locking prevents conflicts
+- Stateless API design
+
+### Vertical
+
+- Memory scales with dataset size
+- CPU optimized via batch processing
+- SSD recommended for large datasets
 
 ## Technology Stack
 
-- **Runtime**: Bun (Node.js alternative)
-- **Database**: SQLite with `bun:sqlite`
-- **Web Server**: Bun.serve() with built-in routing
-- **Schema Validation**: Zod for type safety
-- **File Processing**: Native Bun file APIs
-- **Background Processing**: Web Workers
+| Component | Technology |
+|-----------|------------|
+| Runtime | [Bun](https://bun.sh) |
+| Database | SQLite via `bun:sqlite` |
+| Web Framework | [Hono](https://hono.dev) |
+| Validation | [Zod](https://zod.dev) |
+| Airtable Client | [airtable](https://npmjs.com/package/airtable) |
+| Type Generation | [airtable-types-gen](https://npmjs.com/package/airtable-types-gen) |

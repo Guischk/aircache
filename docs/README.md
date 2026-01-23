@@ -1,88 +1,114 @@
 # Aircache Documentation
 
-Complete guide for setting up and running Aircache - a high-performance SQLite cache for Airtable.
+Welcome to the Aircache documentation. Aircache is a high-performance SQLite cache for Airtable that makes your queries **240x faster**.
 
-## Getting Started
+## Quick Links
 
-New to Aircache? Start here:
+| I want to... | Go to... |
+|--------------|----------|
+| Get started quickly | [Quick Start Guide](getting-started/quick-start.md) |
+| Configure my instance | [Configuration Guide](getting-started/configuration.md) |
+| Set up real-time sync | [Webhook Setup](webhooks.md) |
+| Deploy to production | [Production Guide](deployment/production.md) |
+| Understand the architecture | [Architecture Overview](architecture/overview.md) |
 
-- **[Quick Start Guide](getting-started/quick-start.md)** - Deploy in 5 minutes
-- **[Configuration Guide](getting-started/configuration.md)** - Environment variables and settings
-- **[Webhook Setup](webhooks.md)** - Real-time cache updates
+## Documentation Structure
 
-## Architecture
+### Getting Started
+- **[Quick Start Guide](getting-started/quick-start.md)** - Deploy Aircache in minutes
+- **[Configuration Guide](getting-started/configuration.md)** - All environment variables and settings
 
-How Aircache works:
+### Architecture
+- **[System Overview](architecture/overview.md)** - How Aircache works
+- **[SQLite Backend](architecture/sqlite-backend.md)** - Database implementation details
 
-- **[System Overview](architecture/overview.md)** - Core design patterns
-- **[SQLite Backend](architecture/sqlite-backend.md)** - Database implementation
+### Features
+- **[Webhook Setup](webhooks.md)** - Real-time cache updates with Airtable webhooks
 
-## Performance
+### Performance
+- **[Benchmarks](performance/benchmarks.md)** - Performance comparison data
+- **[Optimizations](performance/optimizations.md)** - Performance tuning guide
+- **[Attachment Handling](performance/attachments.md)** - File download optimization
 
-Optimization and benchmarking:
-
-- **[Benchmarks](performance/benchmarks.md)** - Performance metrics
-- **[Optimizations](performance/optimizations.md)** - Tuning techniques
-- **[Attachment Handling](performance/attachments.md)** - File optimization
-
-## Deployment
-
-Production guides:
-
+### Deployment
 - **[Production Setup](deployment/production.md)** - Complete deployment guide
 - **[Railway Platform](deployment/railway.md)** - One-click Railway deployment
 
-## Development
+### Development
+- **[Testing Guide](development/testing.md)** - Test framework and practices
+- **[Security Guidelines](development/security.md)** - Security best practices
+- **[Available Scripts](development/scripts.md)** - Development commands
 
-For contributors:
+## System Requirements
 
-- **[Testing Guide](development/testing.md)** - Test framework
-- **[Security Guidelines](development/security.md)** - Best practices
-- **[Development Scripts](development/scripts.md)** - Available commands
-- **[API Benchmarks](development/api-benchmarks.md)** - Performance testing
+| Requirement | Minimum | Recommended |
+|-------------|---------|-------------|
+| Runtime | Bun 1.0+ | Bun 1.1+ |
+| RAM | 512MB | 2GB |
+| Storage | 10GB | 50GB SSD |
+| Network | Stable | Low-latency |
 
-## Quick Reference
+## Key Concepts
 
-**System Requirements:**
-- Bun 1.0+
-- 512MB RAM minimum (2GB recommended)
-- 10GB storage (varies with dataset size)
+### Dual-Database Strategy
 
-**Key Commands:**
+Aircache uses two SQLite databases for zero-downtime updates:
+1. **Active database** - Serves all API requests
+2. **Inactive database** - Receives fresh data during refresh
+3. **Atomic swap** - Databases switch instantly after sync
+
+### Sync Modes
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `polling` | Regular full refresh | Default, works everywhere |
+| `webhook` | Real-time incremental updates | Low-latency requirements |
+| `manual` | API-triggered refresh only | Full control scenarios |
+
+### Type Safety
+
+Aircache automatically generates TypeScript types from your Airtable schema:
+- Access types via `/api/types` endpoint
+- Field mappings via `/api/mappings` endpoint
+- Full Zod validation for runtime safety
+
+## Common Commands
+
 ```bash
-bun install              # Install dependencies
-bun --hot index.ts       # Development mode
-bun test                 # Run tests
-bun run benchmark        # Performance tests
-bun run validate         # Lint + test + benchmark
+# Start the server
+bun run start
+
+# Development with hot reload
+bun run dev
+
+# Run tests
+bun test
+
+# Full validation
+bun run validate
+
+# Generate types from Airtable
+bun run types
 ```
 
-**Essential Variables:**
-```bash
-AIRTABLE_PERSONAL_TOKEN=pat_your_token
-AIRTABLE_BASE_ID=app_your_base_id
-BEARER_TOKEN=your_api_token
-```
+## Troubleshooting
 
-## Common Issues
-
-| Issue                | Solution                                           |
-| -------------------- | -------------------------------------------------- |
-| Service won't start  | Check environment variables and file permissions   |
-| High memory usage    | Review dataset size and refresh interval           |
-| Slow performance     | Check database indexes and attachment settings     |
-| API errors           | Verify Airtable token permissions                  |
-| Webhook not working  | Verify WEBHOOK_PUBLIC_URL and WEBHOOK_SECRET       |
+| Issue | Solution |
+|-------|----------|
+| Service won't start | Check required environment variables |
+| 401 Unauthorized | Verify `BEARER_TOKEN` in requests |
+| Slow performance | Check database indexes, review refresh interval |
+| Webhook not working | Verify `WEBHOOK_PUBLIC_URL` is publicly accessible |
+| High memory usage | Review dataset size, consider pagination |
 
 ## Getting Help
 
-1. Check application logs for errors
-2. Verify environment variables are set correctly
-3. Review relevant documentation sections
-4. [Report issues](https://github.com/guischk/aircache/issues) on GitHub
+1. Check the [GitHub Issues](https://github.com/guischk/aircache/issues)
+2. Join [GitHub Discussions](https://github.com/guischk/aircache/discussions)
+3. Review application logs for error details
 
 ## Additional Resources
 
 - [Main README](../README.md) - Project overview
-- [AGENTS.md](../AGENTS.md) - Development guidelines
-- [Tests Directory](../tests/) - Example tests
+- [AGENTS.md](../AGENTS.md) - AI coding guidelines
+- [API Endpoints](../README.md#api-endpoints) - Full API reference

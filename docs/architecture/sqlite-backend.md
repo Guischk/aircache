@@ -1,272 +1,238 @@
-# Migration Redis → SQLite
+# SQLite Backend
 
-## 🎯 Objective
+Aircache uses SQLite as its caching backend, providing a simple, performant, and cost-effective solution.
 
-Migrate the Redis cache architecture to SQLite to:
-- **Reduce Railway costs** from $15/month to ~$2-3/month
-- **Simplify the architecture** (single application)
-- **Improve data persistence**
-- **Integrate attachment storage** directly
+## Why SQLite?
 
-## 💰 Expected Savings
+| Feature | SQLite | Alternative (Redis) |
+|---------|--------|---------------------|
+| **Performance** | ~1ms queries | ~5-10ms (network) |
+| **Cost** | Free (embedded) | $10-15/month |
+| **Persistence** | Native | Configurable |
+| **Transactions** | Full ACID | Limited |
+| **Latency** | Local disk | Network hop |
+| **Complexity** | Embedded | External service |
+| **Backup** | Single file | Manual setup |
 
-| Component | Before (Redis) | After (SQLite) | Savings |
-|-----------|----------------|----------------|---------|
-| Application | ~$3/month | ~$2-3/month | $0 |
-| Redis Service | ~$10-12/month | $0 | -$12/month |
-| Storage | External | Included Railway | Variable |
-| **Total** | **~$15/month** | **~$2-3/month** | **~80% savings** |
+## Database Structure
 
-## 🏗️ Architecture
+### Dual Database System
 
-### Before (Redis)
+Aircache maintains two SQLite databases:
+
 ```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│ Application │───▶│ Redis Cache │───▶│   Airtable  │
-│   (Bun)     │    │  External   │    │    API      │
-└─────────────┘    └─────────────┘    └─────────────┘
-      │                                      │
-      ▼                                      ▼
-┌─────────────┐                    ┌─────────────┐
-│ Attachments │                    │  Periodic   │
-│  External   │                    │   Refresh   │
-└─────────────┘                    └─────────────┘
+data/
+├── aircache-v1.sqlite    # Database version 1
+├── aircache-v2.sqlite    # Database version 2
+└── metadata.sqlite       # System metadata
 ```
 
-### After (SQLite)
-```
-┌─────────────────────────────────┐    ┌─────────────┐
-│          Application            │───▶│   Airtable  │
-│  ┌─────────────┐ ┌─────────────┐│    │    API      │
-│  │    API      │ │   SQLite    ││    └─────────────┘
-│  │   Server    │ │   Cache     ││            │
-│  └─────────────┘ └─────────────┘│            ▼
-│  ┌─────────────┐ ┌─────────────┐│    ┌─────────────┐
-│  │ Attachments │ │   Worker    ││    │   Daily     │
-│  │   Storage   │ │  Refresh    ││    │  Refresh    │
-│  └─────────────┘ └─────────────┘│    └─────────────┘
-└─────────────────────────────────┘
+At any time, one is **active** (serving requests) and one is **inactive** (receiving updates).
+
+### Database Schema
+
+Each cache database contains:
+
+```sql
+-- Table: records
+-- Stores all Airtable records
+CREATE TABLE IF NOT EXISTS records (
+  id TEXT PRIMARY KEY,
+  table_name TEXT NOT NULL,
+  data TEXT NOT NULL,           -- JSON string of fields
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_records_table ON records(table_name);
+
+-- Table: attachments
+-- Stores attachment metadata
+CREATE TABLE IF NOT EXISTS attachments (
+  id TEXT PRIMARY KEY,
+  record_id TEXT NOT NULL,
+  table_name TEXT NOT NULL,
+  field_name TEXT NOT NULL,
+  original_url TEXT NOT NULL,
+  local_path TEXT,
+  filename TEXT NOT NULL,
+  size INTEGER,
+  mime_type TEXT,
+  downloaded_at TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_attachments_record ON attachments(record_id);
+CREATE INDEX idx_attachments_url ON attachments(original_url);
 ```
 
-## 📋 Step-by-step Migration
+### Metadata Database
 
-### 1. Preparation
+```sql
+-- Table: metadata
+-- Stores system state
+CREATE TABLE IF NOT EXISTS metadata (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Key entries:
+-- 'active_version' -> '1' or '2'
+-- 'last_refresh' -> ISO timestamp
+-- 'webhook_id' -> Airtable webhook ID
+-- 'webhook_secret' -> HMAC secret (base64)
+```
+
+## Operations
+
+### Reading Data
+
+```typescript
+// Get all records from a table
+const records = sqliteService.getRecords("users");
+
+// Get a single record
+const record = sqliteService.getRecord("users", "recXXXXXX");
+
+// Get table list
+const tables = sqliteService.getTables();
+```
+
+### Writing Data (During Refresh)
+
+```typescript
+// Write to inactive database
+sqliteService.setRecordsBatch("users", records, true);
+
+// After sync complete, switch active database
+sqliteService.switchActiveDatabase();
+```
+
+### Atomic Switch
+
+```typescript
+// In metadata.sqlite
+UPDATE metadata SET value = '2' WHERE key = 'active_version';
+
+// All subsequent reads use v2 database
+```
+
+## Performance Characteristics
+
+### Query Performance
+
+| Operation | Time | Notes |
+|-----------|------|-------|
+| Single record by ID | <1ms | Primary key lookup |
+| Table scan (100 records) | 1-3ms | Index scan |
+| Table scan (1000 records) | 5-15ms | Full table |
+| List tables | <1ms | Metadata query |
+
+### Write Performance
+
+| Operation | Time | Notes |
+|-----------|------|-------|
+| Insert single record | <1ms | Prepared statement |
+| Insert batch (50) | 5-10ms | Single transaction |
+| Full table refresh | 100ms-5s | Depends on size |
+
+### Storage
+
+- **Typical size**: 1-10MB per 1000 records
+- **With attachments**: Varies by file sizes
+- **Compression**: Not enabled (fast access priority)
+
+## Configuration
+
+### Database Paths
 
 ```bash
-# Backup current environment
-cp .env .env.redis.backup
-
-# Update configuration
-cp .env.example .env
-# Edit .env with SQLITE_PATH and STORAGE_PATH
-```
-
-### 2. Local Testing
-
-```bash
-# Start in SQLite mode
-bun run start:sqlite
-
-# OR in development
-bun run dev:sqlite
-
-# Verify endpoints
-curl http://localhost:3000/health
-curl -H "Authorization: Bearer $BEARER_TOKEN" http://localhost:3000/api/tables
-```
-
-### 3. Comparative Benchmark
-
-```bash
-# Compare performance
-bun run benchmark:sqlite
-
-# Expected results:
-# - SQLite faster locally (no network latency)
-# - More robust transactions
-# - Automatic persistent storage
-```
-
-### 4. Railway Deployment
-
-#### Option A: New project
-```bash
-# Create a new Railway project
-railway login
-railway init
-railway up
-```
-
-#### Option B: Existing project migration
-```bash
-# Remove Redis service
-# In Railway dashboard: Remove Redis service
-
-# Deploy new version
-git add .
-git commit -m "Migration to SQLite - cost reduction"
-git push origin main
-```
-
-### 5. Railway Configuration
-
-```toml
-# railway.toml
-[build]
-builder = "dockerfile"
-
-[deploy]
-startCommand = "bun run start:sqlite"
-
-[environments.production.variables]
-SQLITE_V1_PATH = "/app/data/aircache-v1.sqlite"
-SQLITE_V2_PATH = "/app/data/aircache-v2.sqlite"
-SQLITE_METADATA_PATH = "/app/data/metadata.sqlite"
-STORAGE_PATH = "/app/storage/attachments"
-REFRESH_INTERVAL = "86400"
-```
-
-## 🔄 Migration Scripts
-
-### package.json Scripts
-```json
-{
-  "scripts": {
-    "start:sqlite": "bun sqlite-index.ts",
-    "dev:sqlite": "bun --hot sqlite-index.ts",
-    "start:redis": "bun index.ts",
-    "benchmark:sqlite": "bun tests/sqlite-vs-redis.benchmark.ts"
-  }
-}
-```
-
-### SQLite Environment Variables
-```env
-# SQLite configuration
 SQLITE_V1_PATH=data/aircache-v1.sqlite
 SQLITE_V2_PATH=data/aircache-v2.sqlite
 SQLITE_METADATA_PATH=data/metadata.sqlite
-CACHE_TTL=86400
-REFRESH_INTERVAL=86400
-STORAGE_PATH=./storage/attachments
-
-# Legacy Redis (keep for rollback)
-# REDIS_URL=redis://...
 ```
 
-## 🆚 Feature Comparison
-
-| Feature | Redis | SQLite | Advantage |
-|---------|--------|--------|-----------|
-| **Read Performance** | Very fast | Fast | Redis |
-| **Write Performance** | Fast | Very fast | SQLite |
-| **Transactions** | Limited | ACID | SQLite |
-| **Persistence** | Configurable | Native | SQLite |
-| **Latency** | Network | Local | SQLite |
-| **Complexity** | External service | Embedded | SQLite |
-| **Cost** | ~$12/month | $0 | SQLite |
-| **Backup** | Manual | Automatic | SQLite |
-
-## 📊 New Endpoints
-
-### SQLite API (full compatibility)
-```
-GET  /health                    - Health check
-GET  /api/tables               - List tables
-GET  /api/tables/:table        - Records from a table
-GET  /api/tables/:table/:id    - Specific record
-GET  /api/stats                - Statistics
-POST /api/refresh              - Manual refresh
-GET  /api/attachments/:id      - Attached files ✨ NEW
-```
-
-### Attachment Management
-```bash
-# Attachments are automatically:
-# - Detected in Airtable data
-# - Downloaded during refresh
-# - Stored locally in /storage/attachments
-# - Served via /api/attachments/:id
-```
-
-## 🚀 Migration Benefits
-
-### ✅ Technical
-- **Guaranteed persistence**: No data loss on restart
-- **ACID transactions**: Data integrity
-- **Integrated attachments**: No need for external service
-- **Local performance**: No network latency
-- **Simple backup**: Single SQLite file
-
-### ✅ Economic
-- **-80% cost reduction** on Railway
-- **Simplified architecture**: Fewer components to maintain
-- **Predictable scaling**: Costs tied only to traffic
-
-### ✅ Operational
-- **Simplified deployment**: Single application
-- **Easier debugging**: Everything in one process
-- **Unified monitoring**: Only one application to monitor
-
-## ⚠️ Considerations
-
-### SQLite Limitations
-- **Concurrent writes**: SQLite handles concurrent reads but serializes writes
-- **DB size**: Suitable up to several GB (more than sufficient for Airtable)
-- **Network**: Optimal performance in local only
-
-### Migration Risks
-- **Downtime**: ~5-10 minutes during Railway migration
-- **In-flight data**: Redis cache data will be lost (automatically reloaded)
-- **Rollback**: Plan for rollback if necessary
-
-## 🔙 Rollback Procedure
-
-If issues with SQLite:
+### Storage Path
 
 ```bash
-# 1. Restore old configuration
-cp .env.redis.backup .env
-
-# 2. Redeploy Redis version
-git revert HEAD
-git push origin main
-
-# 3. Recreate Redis service on Railway
-# Via Railway dashboard: Add Redis service
+STORAGE_PATH=./data/attachments
 ```
 
-## 📈 Post-migration Monitoring
+## Maintenance
 
-### Metrics to Monitor
-- **API response time**: Should be ≤ Redis
-- **SQLite DB size**: Normal growth
-- **Disk space**: Attachment storage
-- **Refresh duration**: Airtable sync time
+### Database Health Check
 
-### Health Checks
 ```bash
-# Check SQLite health
-curl http://localhost:3000/health
+# Check database integrity
+sqlite3 data/aircache-v1.sqlite "PRAGMA integrity_check"
 
-# Detailed stats
-curl -H "Authorization: Bearer $TOKEN" \
-     http://localhost:3000/api/stats
+# Check database size
+ls -lh data/*.sqlite
 ```
 
-## ✅ Migration Checklist
+### Optimization
 
-- [ ] Backup current environment
-- [ ] SQLite local tests successful
-- [ ] SQLite vs Redis benchmark validated
-- [ ] Railway configuration updated
-- [ ] Environment variables configured
-- [ ] SQLite deployment successful
-- [ ] Post-deployment API tests
-- [ ] Redis service removal
-- [ ] 24h monitoring without issues
-- [ ] Team documentation updated
+```bash
+# Vacuum database (reclaim space)
+sqlite3 data/aircache-v1.sqlite "VACUUM"
 
----
+# Update statistics
+sqlite3 data/aircache-v1.sqlite "ANALYZE"
+```
 
-**🎯 Expected Result**: Simplified architecture, 80% cost reduction, equivalent or better performance, and integrated attachment storage.
+### Backup
+
+```bash
+# Simple file copy (when service is stopped)
+cp data/aircache-v1.sqlite backup/
+
+# Hot backup (with service running)
+sqlite3 data/aircache-v1.sqlite ".backup backup/aircache.sqlite"
+```
+
+## Troubleshooting
+
+### Database Locked
+
+```
+Error: SQLITE_BUSY: database is locked
+```
+
+**Cause**: Concurrent write operations
+**Solution**: Aircache handles this with retry logic; if persistent, restart the service
+
+### Database Corrupted
+
+```
+Error: database disk image is malformed
+```
+
+**Solution**:
+1. Stop the service
+2. Delete corrupted database
+3. Restart (will rebuild from Airtable)
+
+```bash
+rm data/aircache-v1.sqlite
+bun run start
+```
+
+### Out of Disk Space
+
+**Prevention**:
+- Monitor disk usage
+- Set up alerts at 80% capacity
+- Consider limiting attachment downloads
+
+```bash
+ENABLE_ATTACHMENT_DOWNLOAD=false
+```
+
+## Best Practices
+
+1. **Use SSD storage** for best performance
+2. **Monitor database size** growth over time
+3. **Regular backups** of metadata.sqlite (contains webhook config)
+4. **Don't modify databases** directly while service is running
+5. **Use WAL mode** (enabled by default) for concurrent access

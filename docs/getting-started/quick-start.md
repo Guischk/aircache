@@ -1,83 +1,151 @@
 # Quick Start Guide
 
+Get Aircache running in under 5 minutes.
+
 ## Prerequisites
 
-- [Bun](https://bun.sh) runtime installed
+- [Bun](https://bun.sh) runtime (v1.0 or higher)
 - Airtable account with API access
-- Node.js 18+ (for compatibility with some tools)
+- Your Airtable Personal Access Token
 
-## Installation
+## Option 1: Deploy to Railway (Fastest)
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd aircache
-   ```
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/aircache?referralCode=3Ri9K9)
 
-2. **Install dependencies**
-   ```bash
-   bun install
-   ```
+1. Click the deploy button
+2. Set your environment variables:
+   - `AIRTABLE_PERSONAL_TOKEN`
+   - `AIRTABLE_BASE_ID`
+   - `BEARER_TOKEN`
+3. Deploy and you're done!
 
-3. **Set up environment variables**
-   ```bash
-   cp .env.example .env
-   ```
+**Estimated time: 60 seconds**
 
-4. **Configure your environment**
-   Edit `.env` with your Airtable credentials:
-   ```bash
-   AIRTABLE_PERSONAL_TOKEN=your_airtable_token
-   AIRTABLE_BASE_ID=your_base_id
-   BEARER_TOKEN=your_api_auth_token
-   ```
+## Option 2: Local Installation
 
-## First Run
+### 1. Clone the Repository
 
-1. **Start the service**
-   ```bash
-   bun index.ts
-   ```
+```bash
+git clone https://github.com/guischk/aircache.git
+cd aircache
+```
 
-2. **Verify it's working**
-   Open http://localhost:3000/health in your browser
+### 2. Install Dependencies
 
-3. **Check available tables**
-   ```bash
-   curl -H "Authorization: Bearer your_api_auth_token" \
-        http://localhost:3000/api/tables
-   ```
+```bash
+bun install
+```
+
+### 3. Configure Environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your credentials:
+
+```bash
+# Required
+AIRTABLE_PERSONAL_TOKEN=pat_xxxxxxxxxxxxx
+AIRTABLE_BASE_ID=appxxxxxxxxxxxxx
+BEARER_TOKEN=your_secure_api_token
+
+# Optional
+PORT=3000
+SYNC_MODE=polling
+REFRESH_INTERVAL=86400
+```
+
+### 4. Start the Server
+
+```bash
+bun run start
+```
+
+You should see:
+
+```
+Aircache v0.2.0
+Server running on http://localhost:3000
+Initial cache refresh starting...
+Cached 5 tables with 1,234 total records
+```
+
+### 5. Verify It's Working
+
+```bash
+# Health check (no auth required)
+curl http://localhost:3000/health
+
+# List tables (auth required)
+curl -H "Authorization: Bearer your_secure_api_token" \
+  http://localhost:3000/api/tables
+```
 
 ## Development Mode
 
 For development with hot reload:
+
 ```bash
-bun --hot index.ts
+bun run dev
 ```
+
+Changes to source files will automatically restart the server.
+
+## Getting Your Airtable Credentials
+
+### Personal Access Token
+
+1. Go to [airtable.com/create/tokens](https://airtable.com/create/tokens)
+2. Click "Create new token"
+3. Name it (e.g., "Aircache")
+4. Add scopes:
+   - `data.records:read` (required)
+   - `schema.bases:read` (required for type generation)
+   - `webhook:manage` (optional, for real-time sync)
+5. Add your base to the access list
+6. Create and copy the token
+
+### Base ID
+
+1. Open your Airtable base
+2. Look at the URL: `airtable.com/appXXXXXXXXXXXXXX/...`
+3. The Base ID starts with `app`
 
 ## Next Steps
 
-- [Configuration Guide](configuration.md) - Detailed configuration options
-- [API Documentation](../development/api-benchmarks.md) - API endpoints and usage
-- [Architecture Overview](../architecture/overview.md) - System design and components
+- [Configure sync mode and other options](configuration.md)
+- [Set up webhooks for real-time updates](../webhooks.md)
+- [Deploy to production](../deployment/production.md)
+- [Understand the architecture](../architecture/overview.md)
 
-## Common Issues
+## Troubleshooting
 
 ### Port Already in Use
-If port 3000 is busy, set a different port:
+
 ```bash
-PORT=3001 bun index.ts
+PORT=3001 bun run start
 ```
 
-### Airtable Authentication
-Ensure your `AIRTABLE_PERSONAL_TOKEN` has access to the specified base:
-1. Go to https://airtable.com/create/tokens
-2. Create a new token with appropriate scopes
-3. Add the base to the token's access list
+### Permission Denied
 
-### SQLite Permissions
-Ensure the process has write permissions to the data directory:
+Ensure the data directory is writable:
+
 ```bash
 mkdir -p data
 chmod 755 data
+```
+
+### Invalid API Token
+
+1. Verify your token at [airtable.com/create/tokens](https://airtable.com/create/tokens)
+2. Check it has access to your specific base
+3. Ensure the required scopes are enabled
+
+### Connection Errors
+
+Check your network can reach Airtable:
+
+```bash
+curl -I https://api.airtable.com
 ```

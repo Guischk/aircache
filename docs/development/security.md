@@ -1,187 +1,264 @@
-# 🔒 Sécurité des Données - Aircache
+# Security Guidelines
 
-Guide des bonnes pratiques de sécurité pour protéger les données de production.
+Best practices for securing your Aircache deployment.
 
-## 🚨 Informations Sensibles
+## Sensitive Information
 
-Ce projet utilise des données Airtable de production. Les informations suivantes sont **strictement confidentielles** :
+Aircache may handle production Airtable data. The following information should be **kept confidential**:
 
-### ❌ À NE JAMAIS exposer
+### Never Expose
 
-- **Noms de tables Airtable** réels
-- **Structure du schéma** business
-- **Nombres d'enregistrements** exacts
-- **Noms de champs** spécifiques
-- **Données de contenu** réelles
+- Real Airtable table names in public code/docs
+- Business schema structure
+- Exact record counts
+- Specific field names
+- Actual data content
+- API tokens and secrets
 
-### ✅ Informations acceptables
+### Acceptable to Share
 
-- **Ordres de grandeur** (~5, ~50, ~500 records)
-- **Types de tables** (Small, Medium, Large)
-- **Métriques de performance** anonymisées
-- **Architecture technique** générique
+- Order of magnitude (~5, ~50, ~500 records)
+- Table types (Small, Medium, Large)
+- Anonymized performance metrics
+- Generic technical architecture
 
-## 📁 Fichiers Protégés
+## Protected Files
 
-### Automatiquement git-ignorés
+### Automatically Git-Ignored
 
 ```
-# Configuration sensible
+# Configuration
 .env
-src/lib/airtable/schema.ts
-src/lib/airtable/config.ts
+.env.*
 
-# Rapports contenant des données réelles
+# Airtable sensitive
+**/airtable/schema.ts
+**/airtable/config.ts
+**/airtable/mappings.json
+
+# Data
+data/
+*.db
+
+# Reports with potential data
 *-report.md
-*-comparison.md
-redis-vs-airtable-comparison.md
 ```
 
-### ⚠️ Attention particulière
+### Files Requiring Attention
 
-- **Tests unitaires** : Utiliser des références dynamiques
-- **Documentation** : Exemples génériques uniquement
-- **Benchmarks** : Noms de tables anonymisés
-- **Logs** : Pas de données business
+- **Unit tests**: Use dynamic table references
+- **Documentation**: Generic examples only
+- **Benchmarks**: Anonymize table names
+- **Logs**: No business data
 
-## 🛡️ Mesures de Protection
+## Authentication
 
-### 1. Anonymisation Automatique
+### API Bearer Token
 
-Les benchmarks utilisent automatiquement des aliases :
+All `/api/*` endpoints require Bearer token authentication:
 
-- `Table réelle` → `Small Table`
-- `Autre table` → `Medium Table`
-- `Grande table` → `Large Table`
+```bash
+curl -H "Authorization: Bearer your_token" \
+  https://your-aircache.com/api/tables
+```
 
-### 2. Tests Dynamiques
+**Best practices:**
+- Generate with `openssl rand -hex 32`
+- Use different tokens per environment
+- Rotate periodically (every 90 days recommended)
+
+### Webhook HMAC Validation
+
+Webhook endpoints use HMAC-SHA256 signature validation:
+
+1. Airtable signs payload with shared secret
+2. Aircache validates signature
+3. Timestamp checked to prevent replay attacks
+
+The webhook secret is automatically managed and stored in the metadata database.
+
+## Environment Security
+
+### File Permissions
+
+```bash
+# Secure .env file
+chmod 600 .env
+chown $(whoami):$(whoami) .env
+
+# Secure data directory
+chmod 750 data/
+chmod 640 data/*.sqlite
+```
+
+### Production Environment
+
+```bash
+# Never commit .env to version control
+# Use environment variables or secret management
+
+# Railway
+# Set via dashboard or CLI: railway variables set
+
+# Docker
+docker run -e BEARER_TOKEN=xxx ...
+
+# Kubernetes
+kubectl create secret generic aircache-secrets ...
+```
+
+## Network Security
+
+### HTTPS Only
+
+Always use HTTPS in production:
+
+```bash
+# Reverse proxy example (nginx)
+server {
+    listen 443 ssl;
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+    
+    location / {
+        proxy_pass http://localhost:3000;
+    }
+}
+```
+
+### Rate Limiting
+
+Webhook rate limiting is built-in:
+
+```bash
+WEBHOOK_RATE_LIMIT=30  # Min seconds between processing
+```
+
+For API rate limiting, use a reverse proxy:
+
+```nginx
+limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+
+location /api/ {
+    limit_req zone=api burst=20 nodelay;
+    proxy_pass http://localhost:3000;
+}
+```
+
+### Firewall
+
+```bash
+# Allow only necessary ports
+ufw allow ssh
+ufw allow 443/tcp
+ufw deny 3000/tcp  # Block direct access
+ufw enable
+```
+
+## Code Security
+
+### Dynamic Table References
 
 ```typescript
-// ❌ Hardcodé - DANGEREUX
+// DANGEROUS - Hardcoded
 const result = await apiRequest("/api/tables/Users");
 
-// ✅ Dynamique - SÉCURISÉ
+// SECURE - Dynamic
 const tables = await apiRequest("/api/tables");
 const firstTable = tables.data.tables[0];
 const result = await apiRequest(`/api/tables/${firstTable}`);
 ```
 
-### 3. Rapports Anonymes
-
-Tous les rapports générés incluent :
-
-- Avertissement de sécurité en en-tête
-- Noms de tables anonymisés
-- Métriques sans contexte business
-
-## 🔍 Vérification de Sécurité
-
-### Avant chaque commit
-
-```bash
-# Vérifier qu'aucune donnée sensible n'est exposée
-grep -r "VotreTableReelle" . --exclude-dir=node_modules
-grep -r "NomChampSensible" . --exclude-dir=node_modules
-
-# Nettoyer les rapports générés
-bun run clean
-```
-
-### Checklist pré-commit
-
-- [ ] Aucun nom de table business dans le code
-- [ ] Tests utilisant des références dynamiques
-- [ ] Documentation avec exemples génériques
-- [ ] Rapports exclus du git
-- [ ] Variables sensibles dans .env uniquement
-
-## 🧪 Tests Sécurisés
-
-### Principe général
+### Anonymous Metrics
 
 ```typescript
-// Récupérer les tables dynamiquement
-const availableTables = AIRTABLE_TABLE_NAMES;
+// DANGEROUS
+console.log(`Table Users has 1,247 records`);
 
-// Utiliser des indexes plutôt que des noms
-const smallTable = availableTables[0]; // Table la plus petite
-const mediumTable = availableTables[1]; // Table moyenne
-const largeTable = availableTables[2]; // Table la plus grande
+// SECURE
+console.log(`Table has ~1000 records`);
 ```
 
-### Métriques autorisées
-
-- **Temps de réponse** (ms)
-- **Throughput** (req/s)
-- **Taux de succès** (%)
-- **Ordres de grandeur** (~10, ~100, ~1000)
-
-### Métriques interdites
-
-- **Nombres exacts** d'enregistrements
-- **Noms de champs** spécifiques
-- **Valeurs de données** réelles
-- **Structure de schéma** détaillée
-
-## 📊 Exemple de Rapport Sécurisé
-
-### ✅ Correct
+### Report Anonymization
 
 ```markdown
-| Table Type | Records | Response Time |
-| ---------- | ------- | ------------- |
-| Small      | ~10     | 25ms          |
-| Medium     | ~50     | 45ms          |
-| Large      | ~500    | 89ms          |
+<!-- DANGEROUS -->
+| Table    | Records |
+| Users    | 37      |
+| Products | 142     |
+
+<!-- SECURE -->
+| Type   | Records |
+| Small  | ~10     |
+| Medium | ~50     |
 ```
 
-### ❌ Dangereux
+## Pre-Commit Checklist
 
-```markdown
-| Table    | Records | Response Time |
-| -------- | ------- | ------------- |
-| Users    | 37      | 25ms          |
-| Products | 142     | 45ms          |
-| Orders   | 1,247   | 89ms          |
-```
+Before each commit:
 
-## 🚀 Mode Production
+- [ ] No table names in code
+- [ ] Tests use dynamic references
+- [ ] Documentation has generic examples
+- [ ] Reports are git-ignored
+- [ ] Secrets only in .env
 
-### Variables d'environnement
+## Security Verification
 
 ```bash
-# Mode anonyme activé par défaut
-ANONYMIZE_REPORTS=true
-MASK_TABLE_NAMES=true
+# Check for exposed table names
+grep -r "YourRealTableName" . --exclude-dir=node_modules
 
-# En développement uniquement
-DEBUG_SHOW_REAL_NAMES=false
+# Check for hardcoded secrets
+grep -r "pat_" . --exclude-dir=node_modules --exclude=.env
+
+# Verify git-ignore is working
+git status --porcelain | grep -E "\.env|schema\.ts|data/"
 ```
 
-### Déploiement
+## Incident Response
 
-1. Vérifier que tous les rapports sont git-ignorés
-2. S'assurer que seules les métriques anonymes sont exposées
-3. Confirmer que les logs ne contiennent pas de données business
-4. Valider que les tests n'utilisent pas de noms hardcodés
+If sensitive data is accidentally exposed:
 
-## 📞 En cas de Fuite
+1. **Immediate**: Remove the content
+2. **Git history**: Rewrite if committed
+3. **Tokens**: Regenerate any exposed tokens
+4. **Documentation**: Update with generic examples
+5. **Tests**: Convert to dynamic references
 
-Si des données sensibles sont accidentellement exposées :
+```bash
+# Rewrite git history (last commit)
+git reset --soft HEAD~1
+# Remove sensitive file
+git add --all
+git commit -m "Clean commit"
 
-1. **Immédiat** : Supprimer le contenu sensible
-2. **Git** : Réecrire l'historique si nécessaire
-3. **Documentation** : Mettre à jour avec des exemples génériques
-4. **Tests** : Convertir en références dynamiques
-5. **Rapports** : Régénérer avec anonymisation
+# For older commits
+git filter-branch --force --index-filter \
+  'git rm --cached --ignore-unmatch path/to/file' \
+  --prune-empty --tag-name-filter cat -- --all
+```
 
-## 🎯 Objectif
+## Regular Security Tasks
 
-**Permettre de démontrer les performances du cache Redis sans jamais exposer d'informations business de production.**
+| Frequency | Task |
+|-----------|------|
+| Weekly | Review logs for anomalies |
+| Monthly | Update dependencies |
+| Quarterly | Rotate API tokens |
+| Annually | Full security audit |
 
-Le code doit être :
+## Dependencies
 
-- ✅ **Réutilisable** sur n'importe quelle base Airtable
-- ✅ **Sécurisé** sans données de production exposées
-- ✅ **Professionnel** avec des exemples génériques
-- ✅ **Démonstratif** des gains de performance
+Keep dependencies updated:
+
+```bash
+# Check for updates
+bun outdated
+
+# Update all
+bun update
+
+# Audit for vulnerabilities
+bun audit
+```
