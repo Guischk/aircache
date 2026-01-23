@@ -72,10 +72,10 @@ export async function handleTableRecords(
 		// 🧮 Calculate offset for pagination
 		const offset = (page - 1) * limit;
 
-		// 📋 Retrieve records with pagination
+		// 📋 Retrieve records with pagination from active database
 		const records = await sqliteService.getTableRecords(
 			tableName,
-			false, // includeAttachments = false for performance
+			false, // useInactive = false → read from activeDb
 			limit,
 			offset,
 		);
@@ -124,8 +124,13 @@ export async function handleSingleRecord(
 		// 📦 Dynamic import of SQLite service
 		const { sqliteService } = await import("../../lib/sqlite/index");
 
-		// 🔍 Search for the specific record
-		const record = await sqliteService.getRecord(tableName, recordId, 1);
+		// 🔍 Search for the specific record in active database first
+		let record = await sqliteService.getRecord(tableName, recordId, false);
+
+		// 🔄 If not found in active, try inactive (useful during full refresh)
+		if (!record) {
+			record = await sqliteService.getRecord(tableName, recordId, true);
+		}
 
 		// 🚫 Check if record exists
 		if (!record) {
