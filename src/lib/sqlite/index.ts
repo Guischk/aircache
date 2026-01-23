@@ -391,6 +391,22 @@ class SQLiteService {
 		const db = useInactive ? this.inactiveDb : this.activeDb;
 		if (!db) throw new Error("Database not connected");
 
+		// Log which database we're writing to
+		const dbPath = useInactive
+			? this.currentActive === "v1"
+				? this.v2Path
+				: this.v1Path
+			: this.currentActive === "v1"
+				? this.v1Path
+				: this.v2Path;
+		logger.info("setRecordsBatch called", {
+			tableNorm,
+			recordCount: records.length,
+			useInactive,
+			currentActive: this.currentActive,
+			targetDb: dbPath,
+		});
+
 		await this.transactionOn(db, async () => {
 			if (!db) return;
 
@@ -423,6 +439,15 @@ class SQLiteService {
 			for (const record of records) {
 				const id = `${tableNorm}:${record.id}`;
 				const dataStr = JSON.stringify(record.fields);
+
+				// Log each record being inserted
+				logger.info("Inserting record into SQLite", {
+					id,
+					tableNorm,
+					recordId: record.id,
+					dataLength: dataStr.length,
+					dataSample: dataStr.substring(0, 200),
+				});
 
 				// Insert/update main record
 				recordStmt.run(id, tableNorm, record.id, dataStr);
@@ -480,6 +505,22 @@ class SQLiteService {
 	): Promise<any | null> {
 		const db = useInactive ? this.inactiveDb : this.activeDb;
 		if (!db) throw new Error("Database not connected");
+
+		// Log which database we're reading from
+		const dbPath = useInactive
+			? this.currentActive === "v1"
+				? this.v2Path
+				: this.v1Path
+			: this.currentActive === "v1"
+				? this.v1Path
+				: this.v2Path;
+		logger.info("getRecord called", {
+			tableNorm,
+			recordId,
+			useInactive,
+			currentActive: this.currentActive,
+			sourceDb: dbPath,
+		});
 
 		const id = `${tableNorm}:${recordId}`;
 

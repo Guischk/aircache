@@ -56,8 +56,18 @@ export class SQLiteBackend {
 
 		logger.start("Starting incremental refresh");
 
+		// Log incoming changes
+		logger.info("Incoming changes from webhook", {
+			tablesCount: Object.keys(changedTablesById).length,
+			changes: JSON.stringify(changedTablesById, null, 2),
+		});
+
 		try {
 			await sqliteService.connect();
+
+			// Log active version
+			const activeVersion = await sqliteService.getActiveVersion();
+			logger.info("SQLite active version", { activeVersion });
 
 			// Itérer sur chaque table modifiée
 			for (const [tableId, changes] of Object.entries(changedTablesById)) {
@@ -76,6 +86,13 @@ export class SQLiteBackend {
 					}
 
 					logger.info(`Processing table: ${originalTableName} (${tableId})`);
+					logger.info("Table changes detail", {
+						tableId,
+						normalizedTableName,
+						createdRecords: Object.keys(changes.createdRecordsById || {}),
+						changedRecords: Object.keys(changes.changedRecordsById || {}),
+						destroyedRecords: changes.destroyedRecordIds || [],
+					});
 
 					// 2. Collecter les IDs à fetch (créés + modifiés)
 					const recordIdsToFetch = [
@@ -88,20 +105,59 @@ export class SQLiteBackend {
 						logger.info(
 							`Fetching ${recordIdsToFetch.length} records from ${originalTableName}`,
 						);
+						logger.info("Record IDs to fetch", { recordIdsToFetch });
 
 						// Airtable API: select() avec filterByFormula
 						// Use tableId directly - Airtable accepts both IDs and names
 						const formula = `OR(${recordIdsToFetch.map((id) => `RECORD_ID()="${id}"`).join(",")})`;
+						logger.info("Airtable filter formula", { formula });
+
 						const records = await base(tableId)
 							.select({ filterByFormula: formula })
 							.all();
 
+						// Log fetched records
+						const firstRecord = records[0];
+						logger.info("Records fetched from Airtable", {
+							count: records.length,
+							recordIds: records.map((r) => r.id),
+							firstRecordFields: firstRecord
+								? Object.keys(firstRecord.fields)
+								: [],
+							firstRecordSample: firstRecord
+								? JSON.stringify(firstRecord.fields).substring(0, 500)
+								: "N/A",
+						});
+
 						// Sauvegarder dans activeDb (pas inactive!)
+						logger.info("Saving to SQLite", {
+							tableName: normalizedTableName,
+							useInactive: false,
+							recordCount: records.length,
+						});
+
 						await sqliteService.setRecordsBatch(
 							normalizedTableName,
 							records,
 							false, // useInactive = false → met à jour activeDb
 						);
+
+						// Verify record was saved by reading it back
+						const firstRecordForVerify = records[0];
+						if (firstRecordForVerify) {
+							const verifyRecord = await sqliteService.getRecord(
+								normalizedTableName,
+								firstRecordForVerify.id,
+								false,
+							);
+							logger.info("Verification - Record read back from SQLite", {
+								recordId: firstRecordForVerify.id,
+								savedSuccessfully: !!verifyRecord,
+								dataSample: verifyRecord
+									? JSON.stringify(verifyRecord).substring(0, 500)
+									: "NOT FOUND",
+							});
+						}
 
 						recordsCreated += Object.keys(
 							changes.createdRecordsById || {},
