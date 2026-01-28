@@ -65,7 +65,7 @@ describe("Security Tests", () => {
 		test("should reject requests without token", async () => {
 			const result = await apiRequest("/api/tables", { auth: false });
 			expect([401, 500]).toContain(result.status);
-			// Error codes may vary with Hono middleware
+			// Error codes may vary
 			expect(result.data.error || result.data.message || result.data.code).toBeDefined();
 		});
 

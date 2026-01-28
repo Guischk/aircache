@@ -31,7 +31,7 @@ Guidelines for AI coding agents working in the Aircache codebase.
 
 **Bun-specific APIs (prefer these):**
 
-- `Bun.serve()` with Hono - not Express
+- `Bun.serve()` with Elysia - not Express or Hono
 - `bun:sqlite` - not `better-sqlite3`
 - `Bun.file()` - not `node:fs` readFile/writeFile
 - `Bun.$\`cmd\`` - not execa
@@ -68,7 +68,7 @@ Guidelines for AI coding agents working in the Aircache codebase.
 
 ```typescript
 // Type imports use `import type`
-import type { Context } from "hono";
+import type { Context } from "elysia";
 
 // Dynamic imports for optimizing startup
 const { sqliteService } = await import("../../lib/sqlite/index");
@@ -168,7 +168,7 @@ aircache/
 ├── src/
 │   ├── config.ts              # Environment configuration
 │   ├── api/
-│   │   ├── app.ts             # Hono application setup
+│   │   ├── app.ts             # Elysia application setup
 │   │   ├── routes/            # Route definitions
 │   │   ├── handlers/          # Request handlers (business logic)
 │   │   └── middleware/        # Auth and other middleware

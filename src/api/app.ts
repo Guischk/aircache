@@ -55,10 +55,10 @@ export function createApp(worker?: Worker) {
 				start: performance.now(),
 			};
 		})
-		.onAfterHandle(({ request, path, method, set, start }) => {
+		.onAfterHandle(({ request, path, set, start }) => {
 			const status = set.status || 200;
 			const duration = performance.now() - start;
-			log.info(`${method} ${path} ${status} - ${duration.toFixed(2)}ms`);
+			log.info(`${request.method} ${path} ${status} - ${duration.toFixed(2)}ms`);
 		})
 
 		// ❌ Global Error Handling

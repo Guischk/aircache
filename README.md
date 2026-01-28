@@ -182,7 +182,7 @@ Aircache uses a **dual-database strategy** for zero-downtime updates:
 
 - **[Bun](https://bun.sh)** - Fast JavaScript runtime
 - **[SQLite](https://sqlite.org)** - Embedded database via `bun:sqlite`
-- **[Hono](https://hono.dev)** - Lightweight web framework
+- **[Elysia](https://elysiajs.com)** - Ergonomic web framework for Bun
 - **[Zod](https://zod.dev)** - Runtime type validation
 
 ## Deployment

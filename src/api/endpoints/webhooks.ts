@@ -4,11 +4,10 @@ import { loggers } from "../../lib/logger";
 const log = loggers.webhook;
 
 export const webhooks = new Elysia({ prefix: "/webhooks" })
-	.state("worker", undefined as Worker | undefined)
 	.post(
 		"/airtable/refresh",
 		async ({ body, set, store }) => {
-			const worker = store.worker;
+			const worker = (store as { worker?: Worker }).worker;
 
 			log.info("Received webhook payload");
 

@@ -8,7 +8,7 @@ Aircache is a high-performance caching layer that syncs data from Airtable to lo
                                     ┌─────────────────────────────────┐
                                     │          Aircache               │
 ┌─────────────┐                     │  ┌─────────────────────────┐   │
-│   Client    │ ───── REST API ──── │  │       Hono Server       │   │
+│   Client    │ ───── REST API ──── │  │       Elysia Server     │   │
 │ Application │                     │  └───────────┬─────────────┘   │
 └─────────────┘                     │              │                  │
                                     │  ┌───────────┴─────────────┐   │
@@ -29,7 +29,7 @@ Aircache is a high-performance caching layer that syncs data from Airtable to lo
 
 ### 1. HTTP Server (`src/server/index.ts`)
 
-- Built with [Hono](https://hono.dev) framework on Bun.serve()
+- Built with [Elysia](https://elysiajs.com) framework on Bun.serve()
 - Handles all API requests
 - Bearer token authentication
 - CORS support for cross-origin access
@@ -219,7 +219,7 @@ The key innovation in Aircache is the dual-database strategy that enables zero-d
 
 - **Response Caching** - Static responses cached
 - **Efficient Queries** - Optimized SQL generation
-- **Minimal Overhead** - Hono's lightweight design
+- **Minimal Overhead** - Elysia's high performance design
 
 ## Security Model
 
@@ -261,7 +261,7 @@ The key innovation in Aircache is the dual-database strategy that enables zero-d
 |-----------|------------|
 | Runtime | [Bun](https://bun.sh) |
 | Database | SQLite via `bun:sqlite` |
-| Web Framework | [Hono](https://hono.dev) |
+| Web Framework | [Elysia](https://elysiajs.com) |
 | Validation | [Zod](https://zod.dev) |
 | Airtable Client | [airtable](https://npmjs.com/package/airtable) |
 | Type Generation | [airtable-types-gen](https://npmjs.com/package/airtable-types-gen) |
