@@ -1,57 +1,48 @@
+import { bearer } from "@elysiajs/bearer";
+import { Elysia } from "elysia";
+
 /**
- * Unified authentication middleware
+ * Bearer Token Authentication Middleware
+ * Securely compares the Authorization header with the configured token
  */
+export const bearerAuth = new Elysia({ name: "bearerAuth" })
+	.use(bearer())
+	.derive({ as: "global" }, async ({ bearer, set }) => {
+		const bearerToken = process.env.BEARER_TOKEN;
 
-export function validateBearerToken(request: Request): boolean {
-	const authHeader = request.headers.get("Authorization");
-	const expectedToken = process.env.BEARER_TOKEN;
+		// Skip if no token configured (dev mode or open access)
+		if (!bearerToken || bearerToken.trim() === "") {
+			return {};
+		}
 
-	if (!expectedToken) {
-		return true; // No authentication configured
-	}
+		if (!bearer) {
+			set.status = 401;
+			throw new Error("Unauthorized");
+		}
 
-	if (!authHeader) {
-		return false;
-	}
+		// Use Bun's native timingSafeEqual (or create a Buffer comparison if needed)
+		const expectedBuffer = Buffer.from(bearerToken);
+		const providedBuffer = Buffer.from(bearer);
 
-	const token = authHeader.replace("Bearer ", "");
-	return token === expectedToken;
-}
+		if (expectedBuffer.length !== providedBuffer.length) {
+			set.status = 401;
+			throw new Error("Unauthorized");
+		}
 
-export function createUnauthorizedResponse(): Response {
-	return new Response(
-		JSON.stringify({
-			error: "Unauthorized",
-			message: "Valid Bearer token required",
-		}),
-		{
-			status: 401,
-			headers: { "Content-Type": "application/json" },
-		},
-	);
-}
+		// Timing safe comparison to prevent timing attacks
+		// Using Bun.crypto if available or node:crypto
+		const crypto = await import("node:crypto");
+		const isValid = crypto.timingSafeEqual(
+			new Uint8Array(expectedBuffer),
+			new Uint8Array(providedBuffer),
+		);
 
-export function createOptionsResponse(): Response {
-	return new Response(null, {
-		status: 204,
-		headers: {
-			"Access-Control-Allow-Origin": "*",
-			"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-			"Access-Control-Allow-Headers": "Content-Type, Authorization",
-			"Access-Control-Max-Age": "86400",
-		},
+		if (!isValid) {
+			set.status = 401;
+			throw new Error("Unauthorized");
+		}
+
+		return {
+			user: "authenticated",
+		};
 	});
-}
-
-export function addCorsHeaders(response: Response): Response {
-	const headers = new Headers(response.headers);
-	headers.set("Access-Control-Allow-Origin", "*");
-	headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-	headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-	return new Response(response.body, {
-		status: response.status,
-		statusText: response.statusText,
-		headers,
-	});
-}

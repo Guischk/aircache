@@ -1,121 +1,107 @@
 /**
- * 🚀 Hono Application for Aircache
+ * 🚀 Elysia Application for Aircache
  * Main application setup with routes and middleware
  */
 
-import { Hono } from "hono";
-import { bearerAuth } from "hono/bearer-auth";
-import { cors } from "hono/cors";
-import { logger } from "hono/logger";
-
+import { swagger } from "@elysiajs/swagger";
+import { Elysia } from "elysia";
 import { loggers } from "../lib/logger";
-import { setupAttachmentRoutes } from "./routes/attachments";
-// Import route handlers
-import { setupHealthRoutes } from "./routes/health";
-import { setupMappingsRoutes } from "./routes/mappings";
-import { setupStatsRoutes } from "./routes/stats";
-import { setupTableRoutes } from "./routes/tables";
-import { setupTypesRoutes } from "./routes/types";
-import { setupWebhookRoutes } from "./routes/webhooks";
+
+// Import endpoints
+import { attachments } from "./endpoints/attachments";
+import { health } from "./endpoints/health";
+import { mappings } from "./endpoints/mappings";
+import { stats } from "./endpoints/stats";
+import { tables } from "./endpoints/tables";
+import { types } from "./endpoints/types";
+import { webhooks } from "./endpoints/webhooks";
+
+// Import middleware
+import { bearerAuth } from "./middleware/auth";
 
 const log = loggers.api;
 
-// Types for context
-interface AppBindings {
-	worker?: Worker;
-}
-
-interface AppVariables {
-	webhookBody?: Record<string, unknown>;
-}
-
-type AppContext = {
-	Bindings: AppBindings;
-	Variables: AppVariables;
-};
-
 /**
- * Create and configure the Hono application
+ * Create and configure the Elysia application
  */
-export function createApp(worker?: Worker): Hono<AppContext> {
-	const app = new Hono<AppContext>();
+export function createApp(worker?: Worker) {
+	const app = new Elysia()
+		// 🧩 Swagger Documentation
+		.use(
+			swagger({
+				documentation: {
+					info: {
+						title: "Aircache API",
+						version: "0.2.0",
+						description: "High-performance Airtable cache service built with SQLite and Bun",
+					},
+					security: [{ BearerAuth: [] }],
+					components: {
+						securitySchemes: {
+							BearerAuth: {
+								type: "http",
+								scheme: "bearer",
+							},
+						},
+					},
+				},
+				path: "/docs",
+			}),
+		)
 
-	// 📝 Request logging
-	app.use("*", logger());
+		// 📝 Request logging
+		.derive(({ request }) => {
+			return {
+				start: performance.now(),
+			};
+		})
+		.onAfterHandle(({ request, path, method, set, start }) => {
+			const status = set.status || 200;
+			const duration = performance.now() - start;
+			log.info(`${method} ${path} ${status} - ${duration.toFixed(2)}ms`);
+		})
 
-	// 🌐 CORS middleware - allow all origins for API access
-	app.use(
-		"*",
-		cors({
-			origin: "*",
-			allowMethods: ["GET", "POST", "OPTIONS"],
-			allowHeaders: ["Content-Type", "Authorization"],
-			maxAge: 86400,
-		}),
-	);
+		// ❌ Global Error Handling
+		.onError(({ code, error, set }) => {
+			if (code === "NOT_FOUND") {
+				set.status = 404;
+				return {
+					error: "Not Found",
+					backend: "sqlite",
+				};
+			}
 
-	// 🔒 Bearer token authentication (except for /health)
-	const bearerToken = process.env.BEARER_TOKEN;
-	if (bearerToken && bearerToken.trim() !== "") {
-		app.use("/api/*", bearerAuth({ token: bearerToken }));
-	}
+			if (code === "VALIDATION") {
+				set.status = 400;
+				return {
+					error: "Validation Error",
+					details: JSON.parse(error.message),
+					backend: "sqlite",
+				};
+			}
 
-	// Pass worker to context for routes that need it
-	app.use("*", async (c, next) => {
-		c.env.worker = worker;
-		await next();
-	});
+			log.error(`API Error [${code}]:`, error);
+			set.status = 500;
+			return {
+				error: "Internal Server Error",
+				message: error instanceof Error ? error.message : "Unknown error",
+				backend: "sqlite",
+			};
+		})
 
-	// 🛣️ Setup route modules
-	setupHealthRoutes(app);
-	setupWebhookRoutes(app); // Webhook routes (no bearer auth, has own HMAC validation)
-	setupTableRoutes(app);
-	setupStatsRoutes(app);
-	setupAttachmentRoutes(app);
-	setupMappingsRoutes(app);
-	setupTypesRoutes(app);
+		// 🌍 Global State
+		.state("worker", worker)
 
-	// ❌ 404 handler with available routes
-	app.notFound((c) => {
-		return c.json(
-			{
-				error: "Route not found",
-				availableRoutes: [
-					"GET /health",
-					"POST /webhooks/airtable/refresh",
-					"GET /api/tables",
-					"GET /api/tables/:tableName",
-					"GET /api/tables/:tableName/:recordId",
-					"GET /api/stats",
-					"POST /api/refresh",
-					"GET /api/attachments/:attachmentId (legacy)",
-					"GET /api/attachments/:table",
-					"GET /api/attachments/:table/:record",
-					"GET /api/attachments/:table/:record/:field",
-					"GET /api/attachments/:table/:record/:field/:filename",
-					"GET /api/mappings",
-					"GET /api/mappings/:identifier",
-					"GET /api/types",
-					"GET /api/types?format=json",
-				],
-			},
-			404,
+		// 🔓 Public Routes
+		.use(health)
+		.use(webhooks)
+
+		// 🔒 Protected Routes (Bearer Token)
+		.guard((app) =>
+			app.use(bearerAuth).use(tables).use(stats).use(attachments).use(mappings).use(types),
 		);
-	});
-
-	// ❌ Error handler
-	app.onError((err, c) => {
-		log.error("API Error:", err);
-		return c.json(
-			{
-				error: "Internal server error",
-				message: err.message,
-			},
-			500,
-		);
-	});
 
 	return app;
 }
 
-export type { AppContext };
+export type App = ReturnType<typeof createApp>;

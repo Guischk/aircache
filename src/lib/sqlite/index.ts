@@ -495,6 +495,86 @@ class SQLiteService {
 	}
 
 	/**
+	 * Check if a table exists
+	 */
+	async tableExists(tableNorm: string, useInactive = false): Promise<boolean> {
+		const db = useInactive ? this.inactiveDb : this.activeDb;
+		if (!db) throw new Error("Database not connected");
+
+		const stmt = db.prepare(`
+      SELECT 1 FROM airtable_records
+      WHERE table_name = ?
+      LIMIT 1
+    `);
+
+		const result = stmt.get(tableNorm);
+		return !!result;
+	}
+
+	/**
+	 * Retrieve records with pagination and filtering
+	 */
+	async getRecords(
+		tableNorm: string,
+		options: {
+			limit?: number;
+			offset?: number;
+			modifiedAfter?: string;
+			filter?: string;
+			useInactive?: boolean;
+		} = {},
+	): Promise<{ records: any[]; total: number }> {
+		const { limit = 100, offset = 0, modifiedAfter, filter, useInactive = false } = options;
+
+		const db = useInactive ? this.inactiveDb : this.activeDb;
+		if (!db) throw new Error("Database not connected");
+
+		let whereClause = "WHERE table_name = ?";
+		const params: any[] = [tableNorm];
+
+		if (modifiedAfter) {
+			whereClause += " AND updated_at > ?";
+			params.push(modifiedAfter);
+		}
+
+		// Simple filtering logic (can be expanded)
+		// Note: For complex filtering, we rely on application logic or expanded SQL columns
+		if (filter) {
+			// This is a basic example, in production you might want structured JSON queries
+			// SQLite JSON1 extension allows querying inside JSON
+			// WHERE json_extract(data, '$.field') = 'value'
+		}
+
+		// Count total matching records
+		const countQuery = `SELECT COUNT(*) as count FROM airtable_records ${whereClause}`;
+		const countStmt = db.prepare(countQuery);
+		const total = (countStmt.get(...params) as { count: number }).count;
+
+		// Fetch records
+		const query = `
+      SELECT data, updated_at FROM airtable_records
+      ${whereClause}
+      ORDER BY updated_at DESC
+      LIMIT ? OFFSET ?
+    `;
+
+		const stmt = db.prepare(query);
+		const rows = stmt.all(...params, limit, offset) as {
+			data: string;
+			updated_at: string;
+		}[];
+
+		const records = rows.map((row) => {
+			const data = JSON.parse(row.data);
+			// Inject metadata if needed
+			// data._updated_at = row.updated_at;
+			return data;
+		});
+
+		return { records, total };
+	}
+
+	/**
 	 * Retrieve a specific record from the active database
 	 */
 	async getRecord(tableNorm: string, recordId: string, useInactive = false): Promise<any | null> {
