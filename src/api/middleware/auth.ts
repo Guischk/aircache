@@ -12,7 +12,9 @@ export const bearerAuth = new Elysia({ name: "bearerAuth" })
 
 		// Skip if no token configured (dev mode or open access)
 		if (!bearerToken || bearerToken.trim() === "") {
-			return {};
+			return {
+				user: "anonymous",
+			};
 		}
 
 		if (!bearer) {

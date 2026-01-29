@@ -4,6 +4,7 @@
  */
 
 import { swagger } from "@elysiajs/swagger";
+import { cors } from "@elysiajs/cors";
 import { Elysia } from "elysia";
 import { loggers } from "../lib/logger";
 
@@ -11,6 +12,7 @@ import { loggers } from "../lib/logger";
 import { attachments } from "./endpoints/attachments";
 import { health } from "./endpoints/health";
 import { mappings } from "./endpoints/mappings";
+import { refresh } from "./endpoints/refresh";
 import { stats } from "./endpoints/stats";
 import { tables } from "./endpoints/tables";
 import { types } from "./endpoints/types";
@@ -46,6 +48,16 @@ export function createApp(worker?: Worker) {
 					},
 				},
 				path: "/docs",
+			}),
+		)
+
+		// 🌐 CORS
+		.use(
+			cors({
+				methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
+				allowedHeaders: ["Content-Type", "Authorization"],
+				origin: true,
+				preflight: true,
 			}),
 		)
 
@@ -97,9 +109,13 @@ export function createApp(worker?: Worker) {
 		.use(webhooks)
 
 		// 🔒 Protected Routes (Bearer Token)
-		.guard((app) =>
-			app.use(bearerAuth).use(tables).use(stats).use(attachments).use(mappings).use(types),
-		);
+		.use(bearerAuth)
+		.use(tables)
+		.use(refresh)
+		.use(stats)
+		.use(attachments)
+		.use(mappings)
+		.use(types);
 
 	return app;
 }

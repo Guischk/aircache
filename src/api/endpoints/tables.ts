@@ -8,7 +8,7 @@ export const tables = new Elysia({ prefix: "/api/tables" })
 		const tables = await sqliteService.getTables();
 		return {
 			backend: "sqlite",
-			tables: tables.map((t) => t.name),
+			tables: tables,
 		};
 	})
 
