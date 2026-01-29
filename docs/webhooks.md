@@ -1,6 +1,6 @@
 # Webhook Configuration
 
-Configure Airtable webhooks to automatically update your Aircache in real-time when data changes.
+Configure Airtable webhooks to automatically update your Airboost in real-time when data changes.
 
 ## Overview
 
@@ -13,7 +13,7 @@ Webhooks enable **incremental cache updates** - only modified records are refres
 
 ## Quick Setup (Auto Mode)
 
-Aircache can automatically create and configure webhooks on startup.
+Airboost can automatically create and configure webhooks on startup.
 
 ### 1. Generate Webhook Secret
 
@@ -27,7 +27,7 @@ Add to your `.env`:
 
 ```bash
 # Required for auto-setup
-WEBHOOK_PUBLIC_URL=https://aircache.yourcompany.com
+WEBHOOK_PUBLIC_URL=https://airboost.yourcompany.com
 WEBHOOK_SECRET=your_generated_secret_here
 
 # Optional (defaults shown)
@@ -37,7 +37,7 @@ WEBHOOK_TIMESTAMP_WINDOW=300
 WEBHOOK_IDEMPOTENCY_TTL=86400
 ```
 
-### 3. Start Aircache
+### 3. Start Airboost
 
 ```bash
 bun index.ts
@@ -48,7 +48,7 @@ The webhook will be automatically created. Check logs for confirmation:
 ```
 ✅ Webhook auto-setup complete (new webhook created)
    Webhook ID: achw8xKJN2m3PqRst
-   Endpoint: https://aircache.yourcompany.com/webhooks/airtable/refresh
+   Endpoint: https://airboost.yourcompany.com/webhooks/airtable/refresh
 ```
 
 ## Manual Setup
@@ -65,7 +65,7 @@ WEBHOOK_AUTO_SETUP=false
 # Configuration
 AIRTABLE_TOKEN="pat_your_token"
 BASE_ID="app_your_base_id"
-AIRCACHE_URL="https://aircache.yourcompany.com"
+AIRCACHE_URL="https://airboost.yourcompany.com"
 WEBHOOK_SECRET="your_secret_here"
 
 # Create webhook
@@ -104,7 +104,7 @@ curl -X POST "https://api.airtable.com/v0/bases/${BASE_ID}/webhooks/${WEBHOOK_ID
 
 | Variable                    | Default | Description                                    |
 | --------------------------- | ------- | ---------------------------------------------- |
-| `WEBHOOK_PUBLIC_URL`        | -       | Public URL of your Aircache (required for auto)|
+| `WEBHOOK_PUBLIC_URL`        | -       | Public URL of your Airboost (required for auto)|
 | `WEBHOOK_SECRET`            | -       | Secret for HMAC validation (min 32 chars)      |
 | `WEBHOOK_AUTO_SETUP`        | `true`  | Enable automatic webhook creation              |
 | `WEBHOOK_RATE_LIMIT`        | `30`    | Minimum seconds between refreshes              |
@@ -116,7 +116,7 @@ curl -X POST "https://api.airtable.com/v0/bases/${BASE_ID}/webhooks/${WEBHOOK_ID
 ### Test Webhook
 
 1. Modify a record in your Airtable base
-2. Check Aircache logs:
+2. Check Airboost logs:
 
 ```
 🔗 [Webhook] Received Airtable webhook
@@ -145,7 +145,7 @@ PAYLOAD="{\"timestamp\":\"$TIMESTAMP\",\"webhookId\":\"test-$(date +%s)\"}"
 SIGNATURE="sha256=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" | cut -d' ' -f2)"
 
 # Send test request
-curl -X POST "https://aircache.yourcompany.com/webhooks/airtable/refresh" \
+curl -X POST "https://airboost.yourcompany.com/webhooks/airtable/refresh" \
   -H "Content-Type: application/json" \
   -H "X-Airtable-Content-MAC: $SIGNATURE" \
   -d "$PAYLOAD"
@@ -159,7 +159,7 @@ curl -X POST "https://aircache.yourcompany.com/webhooks/airtable/refresh" \
 
 Set the public URL in your `.env`:
 ```bash
-WEBHOOK_PUBLIC_URL=https://aircache.yourcompany.com
+WEBHOOK_PUBLIC_URL=https://airboost.yourcompany.com
 ```
 
 **Error: `Failed to create webhook: 401`**
@@ -172,13 +172,13 @@ WEBHOOK_PUBLIC_URL=https://aircache.yourcompany.com
 
 - Ensure `WEBHOOK_PUBLIC_URL` is publicly accessible (not localhost)
 - Verify URL uses HTTPS
-- Test accessibility: `curl -I https://aircache.yourcompany.com/health`
+- Test accessibility: `curl -I https://airboost.yourcompany.com/health`
 
 ### Runtime Errors
 
 **Error: `Missing or invalid signature header`**
 
-- Verify `WEBHOOK_SECRET` matches between Aircache and Airtable
+- Verify `WEBHOOK_SECRET` matches between Airboost and Airtable
 - Check for whitespace or hidden characters in secret
 - Regenerate webhook in Airtable
 
@@ -220,10 +220,10 @@ WEBHOOK_PUBLIC_URL=https://aircache.yourcompany.com
 # 1. Generate new secret
 NEW_SECRET=$(openssl rand -hex 32)
 
-# 2. Update Aircache .env
+# 2. Update Airboost .env
 WEBHOOK_SECRET=$NEW_SECRET
 
-# 3. Restart Aircache
+# 3. Restart Airboost
 bun index.ts
 
 # 4. Update Airtable webhook
@@ -239,13 +239,13 @@ Use different webhook URLs for each environment:
 
 **Production:**
 ```bash
-WEBHOOK_PUBLIC_URL=https://aircache.prod.com
+WEBHOOK_PUBLIC_URL=https://airboost.prod.com
 WEBHOOK_SECRET=prod_secret_here
 ```
 
 **Staging:**
 ```bash
-WEBHOOK_PUBLIC_URL=https://aircache.staging.com
+WEBHOOK_PUBLIC_URL=https://airboost.staging.com
 WEBHOOK_SECRET=staging_secret_here
 ```
 
@@ -281,11 +281,11 @@ Airtable doesn't support updating the URL. Instead:
 
 1. Delete the old webhook
 2. Create a new webhook with the new URL
-3. Or change `WEBHOOK_PUBLIC_URL` and restart Aircache (auto-setup will create new webhook)
+3. Or change `WEBHOOK_PUBLIC_URL` and restart Airboost (auto-setup will create new webhook)
 
 ## Webhook Lifecycle
 
-Airtable webhooks expire after **7 days of inactivity**. Aircache handles this automatically:
+Airtable webhooks expire after **7 days of inactivity**. Airboost handles this automatically:
 
 - Active webhooks are refreshed on each notification
 - Auto-setup recreates webhooks on restart if missing
@@ -312,16 +312,16 @@ For advanced filtering, manually create webhooks with custom specifications:
 
 ### Webhook Batching
 
-Airtable may batch multiple changes into a single webhook notification. Aircache handles this automatically by processing all changes in the `payloads` array.
+Airtable may batch multiple changes into a single webhook notification. Airboost handles this automatically by processing all changes in the `payloads` array.
 
 ## References
 
 - [Airtable Webhooks API](https://airtable.com/developers/web/api/webhooks-overview)
 - [HMAC Authentication](https://en.wikipedia.org/wiki/HMAC)
-- [Aircache Configuration](../README.md#configuration)
+- [Airboost Configuration](../README.md#configuration)
 
 ## Support
 
 - [Full Documentation](../README.md)
-- [Report Issues](https://github.com/guischk/aircache/issues)
-- [Discussions](https://github.com/guischk/aircache/discussions)
+- [Report Issues](https://github.com/guischk/airboost/issues)
+- [Discussions](https://github.com/guischk/airboost/discussions)

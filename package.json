@@ -1,16 +1,16 @@
 {
-	"name": "aircache",
+	"name": "airboost",
 	"version": "0.2.0",
 	"description": "Open source high-performance Airtable cache service built with SQLite and Bun. 240x faster than direct API calls with zero-downtime updates.",
 	"author": "Guischk",
 	"license": "MIT",
-	"homepage": "https://github.com/guischk/aircache#readme",
+	"homepage": "https://github.com/guischk/airboost#readme",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/guischk/aircache.git"
+		"url": "git+https://github.com/guischk/airboost.git"
 	},
 	"bugs": {
-		"url": "https://github.com/guischk/aircache/issues"
+		"url": "https://github.com/guischk/airboost/issues"
 	},
 	"keywords": [
 		"airtable",

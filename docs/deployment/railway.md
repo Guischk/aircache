@@ -71,8 +71,8 @@ git push origin main
 AIRTABLE_PERSONAL_TOKEN=your-token
 AIRTABLE_BASE_ID=your-base-id
 BEARER_TOKEN=your-bearer-token
-SQLITE_V1_PATH=/app/data/aircache-v1.sqlite
-SQLITE_V2_PATH=/app/data/aircache-v2.sqlite
+SQLITE_V1_PATH=/app/data/airboost-v1.sqlite
+SQLITE_V2_PATH=/app/data/airboost-v2.sqlite
 SQLITE_METADATA_PATH=/app/data/metadata.sqlite
 STORAGE_PATH=/app/storage/attachments
 REFRESH_INTERVAL=86400
@@ -91,7 +91,7 @@ NODE_ENV=production
 ```bash
 # Initialize a new project
 railway login
-railway init aircache-sqlite
+railway init airboost-sqlite
 railway up
 
 # Configure environment variables
@@ -169,8 +169,8 @@ curl -H "Authorization: Bearer $BEARER_TOKEN" \
 # If problems occur, check:
 ls -la /app/data/        # SQLite files created?
 ls -la /app/storage/     # Attachments folder created?
-cat /app/data/aircache-v1.sqlite # DB v1 not empty?
-cat /app/data/aircache-v2.sqlite # DB v2 not empty?
+cat /app/data/airboost-v1.sqlite # DB v1 not empty?
+cat /app/data/airboost-v2.sqlite # DB v2 not empty?
 
 # Useful logs:
 grep "SQLite" /var/log/app.log

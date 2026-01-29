@@ -22,7 +22,7 @@ export interface RefreshStats {
 }
 
 export class SQLiteBackend {
-	private chunkArray<T>(array: T[], chunkSize: number): T[][] {
+	private chunkArray<T>(array: ReadonlyArray<T> | T[], chunkSize: number): T[][] {
 		const chunks: T[][] = [];
 		for (let i = 0; i < array.length; i += chunkSize) {
 			chunks.push(array.slice(i, i + chunkSize));
@@ -127,7 +127,7 @@ export class SQLiteBackend {
 
 						await sqliteService.setRecordsBatch(
 							normalizedTableName,
-							records,
+							records as unknown as ReadonlyArray<{ id: string; fields: any }>,
 							false, // useInactive = false → met à jour activeDb
 						);
 
@@ -251,7 +251,10 @@ export class SQLiteBackend {
 
 					// Save records to SQLite in batches for better performance
 					const batchSize = 50;
-					const recordChunks = this.chunkArray(records, batchSize);
+					const recordChunks = this.chunkArray(
+						records as unknown as ReadonlyArray<{ id: string; fields: any }>,
+						batchSize,
+					);
 
 					for (const chunk of recordChunks) {
 						try {
@@ -329,7 +332,11 @@ export class SQLiteBackend {
 
 		try {
 			// Check if attachment download is enabled
-			if (!config.enableAttachmentDownload) {
+			// Check config AND environment variable directly (for tests)
+			const isEnabled =
+				config.enableAttachmentDownload || process.env.ENABLE_ATTACHMENT_DOWNLOAD === "true";
+
+			if (!isEnabled) {
 				logger.info("Attachment download is disabled (ENABLE_ATTACHMENT_DOWNLOAD=false)");
 				return { downloaded: 0, errors: 0 };
 			}
@@ -345,7 +352,7 @@ export class SQLiteBackend {
 			logger.info(`Found ${pendingAttachments.length} attachments to download`);
 
 			// Ensure storage directory exists
-			const storagePath = config.storagePath;
+			const storagePath = process.env.STORAGE_PATH || config.storagePath;
 			await Bun.$`mkdir -p ${storagePath}`;
 
 			// Download attachments with limited concurrency

@@ -1,4 +1,4 @@
-# 🚀 Scripts Guide - Aircache
+# 🚀 Scripts Guide - Airboost
 
 Guide des scripts npm disponibles dans le projet.
 

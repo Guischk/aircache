@@ -1,8 +1,8 @@
-# Performance Optimizations - Aircache
+# Performance Optimizations - Airboost
 
 ## Overview
 
-This document summarizes the performance optimizations implemented in the Aircache system to improve refresh times and resource management.
+This document summarizes the performance optimizations implemented in the Airboost system to improve refresh times and resource management.
 
 ## 1. 🔧 Environment Variable for Attachments
 

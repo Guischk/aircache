@@ -1,6 +1,6 @@
-# Aircache Documentation
+# Airboost Documentation
 
-Welcome to the Aircache documentation. Aircache is a high-performance SQLite cache for Airtable that makes your queries **240x faster**.
+Welcome to the Airboost documentation. Airboost is a high-performance SQLite cache for Airtable that makes your queries **240x faster**.
 
 ## Quick Links
 
@@ -15,11 +15,11 @@ Welcome to the Aircache documentation. Aircache is a high-performance SQLite cac
 ## Documentation Structure
 
 ### Getting Started
-- **[Quick Start Guide](getting-started/quick-start.md)** - Deploy Aircache in minutes
+- **[Quick Start Guide](getting-started/quick-start.md)** - Deploy Airboost in minutes
 - **[Configuration Guide](getting-started/configuration.md)** - All environment variables and settings
 
 ### Architecture
-- **[System Overview](architecture/overview.md)** - How Aircache works
+- **[System Overview](architecture/overview.md)** - How Airboost works
 - **[SQLite Backend](architecture/sqlite-backend.md)** - Database implementation details
 
 ### Features
@@ -52,7 +52,7 @@ Welcome to the Aircache documentation. Aircache is a high-performance SQLite cac
 
 ### Dual-Database Strategy
 
-Aircache uses two SQLite databases for zero-downtime updates:
+Airboost uses two SQLite databases for zero-downtime updates:
 1. **Active database** - Serves all API requests
 2. **Inactive database** - Receives fresh data during refresh
 3. **Atomic swap** - Databases switch instantly after sync
@@ -67,7 +67,7 @@ Aircache uses two SQLite databases for zero-downtime updates:
 
 ### Type Safety
 
-Aircache automatically generates TypeScript types from your Airtable schema:
+Airboost automatically generates TypeScript types from your Airtable schema:
 - Access types via `/api/types` endpoint
 - Field mappings via `/api/mappings` endpoint
 - Full Zod validation for runtime safety
@@ -103,8 +103,8 @@ bun run types
 
 ## Getting Help
 
-1. Check the [GitHub Issues](https://github.com/guischk/aircache/issues)
-2. Join [GitHub Discussions](https://github.com/guischk/aircache/discussions)
+1. Check the [GitHub Issues](https://github.com/guischk/airboost/issues)
+2. Join [GitHub Discussions](https://github.com/guischk/airboost/discussions)
 3. Review application logs for error details
 
 ## Additional Resources

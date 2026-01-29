@@ -1,10 +1,10 @@
 # Security Guidelines
 
-Best practices for securing your Aircache deployment.
+Best practices for securing your Airboost deployment.
 
 ## Sensitive Information
 
-Aircache may handle production Airtable data. The following information should be **kept confidential**:
+Airboost may handle production Airtable data. The following information should be **kept confidential**:
 
 ### Never Expose
 
@@ -59,7 +59,7 @@ All `/api/*` endpoints require Bearer token authentication:
 
 ```bash
 curl -H "Authorization: Bearer your_token" \
-  https://your-aircache.com/api/tables
+  https://your-airboost.com/api/tables
 ```
 
 **Best practices:**
@@ -72,7 +72,7 @@ curl -H "Authorization: Bearer your_token" \
 Webhook endpoints use HMAC-SHA256 signature validation:
 
 1. Airtable signs payload with shared secret
-2. Aircache validates signature
+2. Airboost validates signature
 3. Timestamp checked to prevent replay attacks
 
 The webhook secret is automatically managed and stored in the metadata database.
@@ -104,7 +104,7 @@ chmod 640 data/*.sqlite
 docker run -e BEARER_TOKEN=xxx ...
 
 # Kubernetes
-kubectl create secret generic aircache-secrets ...
+kubectl create secret generic airboost-secrets ...
 ```
 
 ## Network Security

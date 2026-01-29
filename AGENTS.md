@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidelines for AI coding agents working in the Aircache codebase.
+Guidelines for AI coding agents working in the Airboost codebase.
 
 ## Build, Lint, and Test Commands
 
@@ -163,7 +163,7 @@ const firstTable = tablesResult.data.tables[0];
 ## Project Structure
 
 ```
-aircache/
+airboost/
 ├── index.ts                    # Main entry point
 ├── src/
 │   ├── config.ts              # Environment configuration

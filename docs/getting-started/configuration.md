@@ -1,6 +1,6 @@
 # Configuration Guide
 
-Complete reference for all Aircache configuration options.
+Complete reference for all Airboost configuration options.
 
 ## Environment Variables
 
@@ -40,8 +40,8 @@ Complete reference for all Aircache configuration options.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SQLITE_V1_PATH` | `data/aircache-v1.sqlite` | Primary database path |
-| `SQLITE_V2_PATH` | `data/aircache-v2.sqlite` | Secondary database path |
+| `SQLITE_V1_PATH` | `data/airboost-v1.sqlite` | Primary database path |
+| `SQLITE_V2_PATH` | `data/airboost-v2.sqlite` | Secondary database path |
 | `SQLITE_METADATA_PATH` | `data/metadata.sqlite` | Metadata database path |
 | `STORAGE_PATH` | `./data/attachments` | Attachment storage directory |
 | `ENABLE_ATTACHMENT_DOWNLOAD` | `true` | Enable attachment downloads |
@@ -75,7 +75,7 @@ Real-time incremental updates via Airtable webhooks.
 
 ```bash
 SYNC_MODE=webhook
-WEBHOOK_PUBLIC_URL=https://aircache.yourcompany.com
+WEBHOOK_PUBLIC_URL=https://airboost.yourcompany.com
 WEBHOOK_AUTO_SETUP=true
 FAILSAFE_REFRESH_INTERVAL=86400
 ```
@@ -105,7 +105,7 @@ SYNC_MODE=manual
 Trigger refresh manually:
 ```bash
 curl -X POST -H "Authorization: Bearer $TOKEN" \
-  https://your-aircache.com/api/refresh
+  https://your-airboost.com/api/refresh
 ```
 
 ## Configuration Examples
@@ -139,7 +139,7 @@ SYNC_MODE=polling
 REFRESH_INTERVAL=86400  # 24 hours
 
 ENABLE_ATTACHMENT_DOWNLOAD=true
-STORAGE_PATH=/var/lib/aircache/attachments
+STORAGE_PATH=/var/lib/airboost/attachments
 CONSOLA_LEVEL=3  # Info level
 CONSOLA_FANCY=false  # Plain logs for production
 ```
@@ -154,7 +154,7 @@ BEARER_TOKEN=secure-production-token
 
 PORT=3000
 SYNC_MODE=webhook
-WEBHOOK_PUBLIC_URL=https://aircache.yourcompany.com
+WEBHOOK_PUBLIC_URL=https://airboost.yourcompany.com
 WEBHOOK_AUTO_SETUP=true
 FAILSAFE_REFRESH_INTERVAL=86400
 
@@ -188,7 +188,7 @@ WEBHOOK_AUTO_SETUP=true
 
 1. Go to [airtable.com/create/tokens](https://airtable.com/create/tokens)
 2. Click "Create new token"
-3. Name: `Aircache Production` (or similar)
+3. Name: `Airboost Production` (or similar)
 4. Add required scopes
 5. Add your base to the access list
 6. Create and securely store the token

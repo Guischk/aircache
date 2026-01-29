@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get Aircache running in under 5 minutes.
+Get Airboost running in under 5 minutes.
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@ Get Aircache running in under 5 minutes.
 
 ## Option 1: Deploy to Railway (Fastest)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/aircache?referralCode=3Ri9K9)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/airboost?referralCode=3Ri9K9)
 
 1. Click the deploy button
 2. Set your environment variables:
@@ -26,8 +26,8 @@ Get Aircache running in under 5 minutes.
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/guischk/aircache.git
-cd aircache
+git clone https://github.com/guischk/airboost.git
+cd airboost
 ```
 
 ### 2. Install Dependencies
@@ -65,7 +65,7 @@ bun run start
 You should see:
 
 ```
-Aircache v0.2.0
+Airboost v0.2.0
 Server running on http://localhost:3000
 Initial cache refresh starting...
 Cached 5 tables with 1,234 total records
@@ -98,7 +98,7 @@ Changes to source files will automatically restart the server.
 
 1. Go to [airtable.com/create/tokens](https://airtable.com/create/tokens)
 2. Click "Create new token"
-3. Name it (e.g., "Aircache")
+3. Name it (e.g., "Airboost")
 4. Add scopes:
    - `data.records:read` (required)
    - `schema.bases:read` (required for type generation)

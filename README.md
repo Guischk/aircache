@@ -1,10 +1,10 @@
 <div align="center">
 
-# Aircache
+# Airboost
 
 **High-performance SQLite cache for Airtable**
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/aircache?referralCode=3Ri9K9)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/airboost?referralCode=3Ri9K9)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Bun](https://img.shields.io/badge/Bun-1.0+-black.svg)](https://bun.sh)
 
@@ -16,16 +16,16 @@
 
 ---
 
-## Why Aircache?
+## Why Airboost?
 
 Airtable is great for managing data, but its API has limitations:
 - **Rate limits**: 5 requests/second max
 - **Latency**: 200-500ms per request
 - **Quotas**: Limited by pricing plan
 
-Aircache solves this by caching your Airtable data locally in SQLite, giving you:
+Airboost solves this by caching your Airtable data locally in SQLite, giving you:
 
-| Metric | Direct Airtable | With Aircache | Improvement |
+| Metric | Direct Airtable | With Airboost | Improvement |
 |--------|-----------------|---------------|-------------|
 | Avg response | 270ms | **1-3ms** | **240x faster** |
 | Rate limits | 5 req/s | **Unlimited** | No throttling |
@@ -45,7 +45,7 @@ Aircache solves this by caching your Airtable data locally in SQLite, giving you
 
 ### Option 1: Deploy to Railway (Recommended)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/aircache?referralCode=3Ri9K9)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/airboost?referralCode=3Ri9K9)
 
 1. Click the deploy button
 2. Add your Airtable credentials
@@ -55,8 +55,8 @@ Aircache solves this by caching your Airtable data locally in SQLite, giving you
 
 ```bash
 # Clone the repository
-git clone https://github.com/guischk/aircache.git
-cd aircache
+git clone https://github.com/guischk/airboost.git
+cd airboost
 
 # Install dependencies
 bun install
@@ -77,7 +77,7 @@ docker run -d \
   -e AIRTABLE_BASE_ID=your_base_id \
   -e BEARER_TOKEN=your_api_token \
   -p 3000:3000 \
-  ghcr.io/guischk/aircache:latest
+  ghcr.io/guischk/airboost:latest
 ```
 
 ## Configuration
@@ -92,7 +92,7 @@ BEARER_TOKEN=your_secure_api_token        # API authentication
 
 ### Sync Modes
 
-Aircache supports three synchronization modes:
+Airboost supports three synchronization modes:
 
 | Mode | Description | Best For |
 |------|-------------|----------|
@@ -148,12 +148,12 @@ GET /api/tables/users?fields=name,email
 
 # Example with curl
 curl -H "Authorization: Bearer your_token" \
-  "https://your-aircache.com/api/tables/users?limit=10"
+  "https://your-airboost.com/api/tables/users?limit=10"
 ```
 
 ## Architecture
 
-Aircache uses a **dual-database strategy** for zero-downtime updates:
+Airboost uses a **dual-database strategy** for zero-downtime updates:
 
 ```
                     ┌─────────────┐
@@ -191,13 +191,13 @@ Aircache uses a **dual-database strategy** for zero-downtime updates:
 
 One-click deployment with automatic SSL and scaling:
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/aircache?referralCode=3Ri9K9)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/airboost?referralCode=3Ri9K9)
 
 **Cost:** ~$2-5/month for typical usage
 
 ### Other Platforms
 
-Aircache runs anywhere Bun runs:
+Airboost runs anywhere Bun runs:
 
 - **Fly.io** - `fly launch`
 - **Render** - Connect your repo
@@ -268,8 +268,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- [GitHub Issues](https://github.com/guischk/aircache/issues) - Bug reports and feature requests
-- [GitHub Discussions](https://github.com/guischk/aircache/discussions) - Questions and community
+- [GitHub Issues](https://github.com/guischk/airboost/issues) - Bug reports and feature requests
+- [GitHub Discussions](https://github.com/guischk/airboost/discussions) - Questions and community
 
 ---
 

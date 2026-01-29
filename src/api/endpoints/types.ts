@@ -1,18 +1,18 @@
 import { Elysia, t } from "elysia";
-import { generateAircacheTypes, generateAircacheTypesJson } from "../../lib/types-generator";
+import { generateAirboostTypes, generateAirboostTypesJson } from "../../lib/types-generator";
 
 export const types = new Elysia({ prefix: "/api/types" }).get(
 	"/",
 	async ({ query, set }) => {
 		if (query.format === "json") {
-			const data = await generateAircacheTypesJson();
+			const data = await generateAirboostTypesJson();
 			return {
 				backend: "sqlite",
 				...data,
 			};
 		}
 
-		const content = await generateAircacheTypes();
+		const content = await generateAirboostTypes();
 		set.headers["Content-Type"] = "text/plain";
 		return content;
 	},

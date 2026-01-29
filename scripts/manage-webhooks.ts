@@ -36,9 +36,7 @@ async function main() {
 					console.log(`Enabled: ${webhook.isHookEnabled}`);
 					console.log(`Notifications: ${webhook.areNotificationsEnabled}`);
 					console.log(`Expires: ${webhook.expirationTime}`);
-					console.log(
-						`Last notification: ${webhook.lastSuccessfulNotificationTime || "Never"}`,
-					);
+					console.log(`Last notification: ${webhook.lastSuccessfulNotificationTime || "Never"}`);
 					console.log("---");
 				}
 				break;
@@ -47,9 +45,7 @@ async function main() {
 			case "create": {
 				if (!arg) {
 					console.error("❌ Error: Public URL required");
-					console.error(
-						"Usage: bun scripts/manage-webhooks.ts create <public-url>",
-					);
+					console.error("Usage: bun scripts/manage-webhooks.ts create <public-url>");
 					process.exit(1);
 				}
 
@@ -67,9 +63,7 @@ async function main() {
 			case "delete": {
 				if (!arg) {
 					console.error("❌ Error: Webhook ID required");
-					console.error(
-						"Usage: bun scripts/manage-webhooks.ts delete <webhook-id>",
-					);
+					console.error("Usage: bun scripts/manage-webhooks.ts delete <webhook-id>");
 					process.exit(1);
 				}
 
@@ -82,9 +76,7 @@ async function main() {
 			case "enable": {
 				if (!arg) {
 					console.error("❌ Error: Webhook ID required");
-					console.error(
-						"Usage: bun scripts/manage-webhooks.ts enable <webhook-id>",
-					);
+					console.error("Usage: bun scripts/manage-webhooks.ts enable <webhook-id>");
 					process.exit(1);
 				}
 
@@ -97,9 +89,7 @@ async function main() {
 			case "setup": {
 				if (!arg) {
 					console.error("❌ Error: Public URL required");
-					console.error(
-						"Usage: bun scripts/manage-webhooks.ts setup <public-url>",
-					);
+					console.error("Usage: bun scripts/manage-webhooks.ts setup <public-url>");
 					process.exit(1);
 				}
 
@@ -136,9 +126,7 @@ async function main() {
 				}
 
 				console.log(`Webhook ID: ${webhookConfig.webhookId}`);
-				console.log(
-					`Secret: ${webhookConfig.macSecretBase64.substring(0, 10)}...\n`,
-				);
+				console.log(`Secret: ${webhookConfig.macSecretBase64.substring(0, 10)}...\n`);
 
 				// Créer un payload de test (format notification Airtable)
 				const timestamp = new Date().toISOString();
@@ -151,13 +139,8 @@ async function main() {
 				const payloadString = JSON.stringify(payload);
 
 				// Calculer la signature HMAC exactement comme Airtable
-				const { calculateWebhookHmac } = await import(
-					"../src/lib/airtable/webhook-hmac"
-				);
-				const hash = calculateWebhookHmac(
-					webhookConfig.macSecretBase64,
-					payloadString,
-				);
+				const { calculateWebhookHmac } = await import("../src/lib/airtable/webhook-hmac");
+				const hash = calculateWebhookHmac(webhookConfig.macSecretBase64, payloadString);
 				const signature = `hmac-sha256=${hash}`;
 
 				console.log("📝 Sending test payload...");
@@ -182,9 +165,7 @@ async function main() {
 						responseJson = null;
 					}
 
-					console.log(
-						`📥 Response: ${response.status} ${response.statusText}\n`,
-					);
+					console.log(`📥 Response: ${response.status} ${response.statusText}\n`);
 
 					if (responseJson) {
 						console.log("📄 Response body:");
@@ -199,9 +180,7 @@ async function main() {
 					// Interpréter la réponse
 					if (response.status === 200) {
 						console.log("✅ Webhook test successful!");
-						console.log(
-							"\nThe endpoint is working correctly and the signature is valid.",
-						);
+						console.log("\nThe endpoint is working correctly and the signature is valid.");
 					} else if (response.status === 401) {
 						console.log("❌ Authentication failed (401)");
 						console.log("\nPossible causes:");
@@ -211,9 +190,7 @@ async function main() {
 						console.log("  bun scripts/manage-webhooks.ts setup <public-url>");
 					} else if (response.status === 429) {
 						console.log("⚠️  Rate limit exceeded (429)");
-						console.log(
-							"\nToo many webhooks sent recently. Wait 30 seconds and try again.",
-						);
+						console.log("\nToo many webhooks sent recently. Wait 30 seconds and try again.");
 					} else if (response.status === 404) {
 						console.log("❌ Endpoint not found (404)");
 						console.log("\nPossible causes:");
@@ -239,7 +216,7 @@ async function main() {
 			}
 
 			default:
-				console.log("Aircache Webhook Manager\n");
+				console.log("Airboost Webhook Manager\n");
 				console.log("Usage:");
 				console.log("  bun scripts/manage-webhooks.ts list");
 				console.log("  bun scripts/manage-webhooks.ts create <public-url>");
@@ -249,25 +226,18 @@ async function main() {
 				console.log("  bun scripts/manage-webhooks.ts test [url]");
 				console.log("\nExamples:");
 				console.log("  bun scripts/manage-webhooks.ts list");
-				console.log(
-					"  bun scripts/manage-webhooks.ts setup https://aircache.example.com",
-				);
-				console.log(
-					"  bun scripts/manage-webhooks.ts delete achw8xKJN2m3PqRst",
-				);
+				console.log("  bun scripts/manage-webhooks.ts setup https://airboost.example.com");
+				console.log("  bun scripts/manage-webhooks.ts delete achw8xKJN2m3PqRst");
 				console.log(
 					"  bun scripts/manage-webhooks.ts test                              # Test localhost:3000",
 				);
 				console.log(
-					"  bun scripts/manage-webhooks.ts test https://aircache.railway.app # Test Railway",
+					"  bun scripts/manage-webhooks.ts test https://airboost.railway.app # Test Railway",
 				);
 				process.exit(1);
 		}
 	} catch (error) {
-		console.error(
-			"\n❌ Error:",
-			error instanceof Error ? error.message : error,
-		);
+		console.error("\n❌ Error:", error instanceof Error ? error.message : error);
 		process.exit(1);
 	}
 }

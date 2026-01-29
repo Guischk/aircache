@@ -1,5 +1,5 @@
 /**
- * TypeScript types generator for Aircache
+ * TypeScript types generator for Airboost
  * Generates ready-to-use TypeScript interfaces from table mappings
  */
 
@@ -87,7 +87,7 @@ ${fieldLines}
 /**
  * Generate complete TypeScript definitions file
  */
-export async function generateAircacheTypes(): Promise<string> {
+export async function generateAirboostTypes(): Promise<string> {
 	await sqliteService.connect();
 	const mappings = await sqliteService.getAllMappings();
 
@@ -96,11 +96,11 @@ export async function generateAircacheTypes(): Promise<string> {
 	}
 
 	const header = `/**
- * Auto-generated TypeScript types for Aircache
+ * Auto-generated TypeScript types for Airboost
  * Generated at: ${new Date().toISOString()}
  * 
  * Usage:
- *   import type { UsersRecord, TABLE_MAPPINGS } from './aircache-types';
+ *   import type { UsersRecord, TABLE_MAPPINGS } from './airboost-types';
  *   
  *   const users: UsersRecord[] = await fetch('/api/tables/users').then(r => r.json());
  */
@@ -109,7 +109,7 @@ export async function generateAircacheTypes(): Promise<string> {
 
 	// Generate table name union type
 	const tableNames = mappings.map((m) => `"${m.normalizedName}"`).join(" | ");
-	const tableNameType = `export type AircacheTableName = ${tableNames};\n\n`;
+	const tableNameType = `export type AirboostTableName = ${tableNames};\n\n`;
 
 	// Generate interfaces for each table
 	const interfaces = mappings
@@ -146,7 +146,7 @@ ${mappingsObject}
 	const recordUnion = `\n/**
  * Union of all record types
  */
-export type AircacheRecord = ${recordTypes};\n`;
+export type AirboostRecord = ${recordTypes};\n`;
 
 	return header + tableNameType + interfaces + mappingsConst + recordUnion;
 }
@@ -154,7 +154,7 @@ export type AircacheRecord = ${recordTypes};\n`;
 /**
  * Generate JSON metadata (alternative format)
  */
-export async function generateAircacheTypesJson(): Promise<object> {
+export async function generateAirboostTypesJson(): Promise<object> {
 	await sqliteService.connect();
 	const mappings = await sqliteService.getAllMappings();
 

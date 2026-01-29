@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide covers deploying Aircache in production environments with considerations for performance, security, and reliability.
+This guide covers deploying Airboost in production environments with considerations for performance, security, and reliability.
 
 ## System Requirements
 
@@ -42,12 +42,12 @@ This guide covers deploying Aircache in production environments with considerati
 #### Installation
 ```bash
 # Create application user
-sudo useradd -r -s /bin/false aircache
-sudo mkdir -p /opt/aircache
-sudo chown aircache:aircache /opt/aircache
+sudo useradd -r -s /bin/false airboost
+sudo mkdir -p /opt/airboost
+sudo chown airboost:airboost /opt/airboost
 
 # Install application
-cd /opt/aircache
+cd /opt/airboost
 git clone <repository-url> .
 bun install --production
 ```
@@ -55,47 +55,47 @@ bun install --production
 #### Configuration
 ```bash
 # Create production environment file
-sudo -u aircache tee /opt/aircache/.env << EOF
+sudo -u airboost tee /opt/airboost/.env << EOF
 AIRTABLE_PERSONAL_TOKEN=pat_your_production_token
 AIRTABLE_BASE_ID=app_your_base_id
 BEARER_TOKEN=$(openssl rand -hex 32)
 PORT=3000
 REFRESH_INTERVAL=86400
-STORAGE_PATH=/var/lib/aircache/attachments
-SQLITE_PATH=/var/lib/aircache/db
+STORAGE_PATH=/var/lib/airboost/attachments
+SQLITE_PATH=/var/lib/airboost/db
 ENABLE_ATTACHMENT_DOWNLOAD=true
 EOF
 
 # Create data directories
-sudo mkdir -p /var/lib/aircache/{db,attachments}
-sudo chown -R aircache:aircache /var/lib/aircache
-sudo chmod 750 /var/lib/aircache
+sudo mkdir -p /var/lib/airboost/{db,attachments}
+sudo chown -R airboost:airboost /var/lib/airboost
+sudo chmod 750 /var/lib/airboost
 ```
 
 #### Systemd Service
 ```bash
 # Create systemd service file
-sudo tee /etc/systemd/system/aircache.service << EOF
+sudo tee /etc/systemd/system/airboost.service << EOF
 [Unit]
-Description=Aircache Airtable Cache Service
+Description=Airboost Airtable Cache Service
 After=network.target
 
 [Service]
 Type=simple
-User=aircache
-Group=aircache
-WorkingDirectory=/opt/aircache
+User=airboost
+Group=airboost
+WorkingDirectory=/opt/airboost
 ExecStart=/usr/local/bin/bun index.ts
 Restart=always
 RestartSec=10
 Environment=NODE_ENV=production
-EnvironmentFile=/opt/aircache/.env
+EnvironmentFile=/opt/airboost/.env
 
 # Security settings
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/aircache
+ReadWritePaths=/var/lib/airboost
 PrivateTmp=true
 
 [Install]
@@ -104,8 +104,8 @@ EOF
 
 # Enable and start service
 sudo systemctl daemon-reload
-sudo systemctl enable aircache
-sudo systemctl start aircache
+sudo systemctl enable airboost
+sudo systemctl start airboost
 ```
 
 ### 2. Docker Deployment
@@ -124,14 +124,14 @@ RUN bun install --production
 COPY . .
 
 # Create non-root user
-RUN addgroup --system --gid 1001 aircache && \
-    adduser --system --uid 1001 --group aircache
+RUN addgroup --system --gid 1001 airboost && \
+    adduser --system --uid 1001 --group airboost
 
 # Create data directories
 RUN mkdir -p /app/data/{db,attachments} && \
-    chown -R aircache:aircache /app/data
+    chown -R airboost:airboost /app/data
 
-USER aircache
+USER airboost
 
 EXPOSE 3000
 
@@ -144,7 +144,7 @@ CMD ["bun", "index.ts"]
 version: '3.8'
 
 services:
-  aircache:
+  airboost:
     build: .
     ports:
       - "3000:3000"
@@ -156,7 +156,7 @@ services:
       - STORAGE_PATH=/app/data/attachments
       - SQLITE_PATH=/app/data/db
     volumes:
-      - aircache_data:/app/data
+      - airboost_data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
@@ -165,7 +165,7 @@ services:
       retries: 3
 
 volumes:
-  aircache_data:
+  airboost_data:
 ```
 
 ### 3. Cloud Platform Deployment
@@ -178,7 +178,7 @@ See [Railway Deployment Guide](railway.md) for Railway-specific instructions.
 heroku login
 
 # Create application
-heroku create your-aircache-app
+heroku create your-airboost-app
 
 # Configure environment variables
 heroku config:set AIRTABLE_PERSONAL_TOKEN=your_token
@@ -192,12 +192,12 @@ git push heroku main
 #### DigitalOcean App Platform
 ```yaml
 # .do/app.yaml
-name: aircache
+name: airboost
 services:
 - name: web
   source_dir: /
   github:
-    repo: your-username/aircache
+    repo: your-username/airboost
     branch: main
   run_command: bun index.ts
   environment_slug: node-js
@@ -218,8 +218,8 @@ services:
 
 ### Nginx Reverse Proxy
 ```nginx
-# /etc/nginx/sites-available/aircache
-upstream aircache {
+# /etc/nginx/sites-available/airboost
+upstream airboost {
     server 127.0.0.1:3000;
     server 127.0.0.1:3001 backup;
 }
@@ -238,7 +238,7 @@ server {
     ssl_certificate_key /path/to/key.pem;
 
     location / {
-        proxy_pass http://aircache;
+        proxy_pass http://airboost;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -253,7 +253,7 @@ server {
     # Rate limiting
     location /api/ {
         limit_req zone=api burst=10 nodelay;
-        proxy_pass http://aircache;
+        proxy_pass http://airboost;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -287,31 +287,31 @@ curl -f http://localhost:3000/health || exit 1
 ### Logging Configuration
 ```bash
 # Systemd journal logs
-sudo journalctl -u aircache -f
+sudo journalctl -u airboost -f
 
 # Application logs
-tail -f /var/log/aircache/app.log
+tail -f /var/log/airboost/app.log
 ```
 
 ### Monitoring Script
 ```bash
 #!/bin/bash
-# /opt/aircache/scripts/monitor.sh
+# /opt/airboost/scripts/monitor.sh
 
 # Check service status
-if ! systemctl is-active --quiet aircache; then
-    echo "CRITICAL: Aircache service is not running"
-    systemctl restart aircache
+if ! systemctl is-active --quiet airboost; then
+    echo "CRITICAL: Airboost service is not running"
+    systemctl restart airboost
 fi
 
 # Check disk space
-DISK_USAGE=$(df /var/lib/aircache | awk 'NR==2 {print $5}' | sed 's/%//')
+DISK_USAGE=$(df /var/lib/airboost | awk 'NR==2 {print $5}' | sed 's/%//')
 if [ $DISK_USAGE -gt 90 ]; then
     echo "WARNING: Disk usage is at ${DISK_USAGE}%"
 fi
 
 # Check database file sizes
-DB_SIZE=$(du -sh /var/lib/aircache/db/*.db 2>/dev/null | sort -hr | head -1)
+DB_SIZE=$(du -sh /var/lib/airboost/db/*.db 2>/dev/null | sort -hr | head -1)
 echo "Largest database: $DB_SIZE"
 
 # Check API response
@@ -326,15 +326,15 @@ fi
 ### Database Backup
 ```bash
 #!/bin/bash
-# /opt/aircache/scripts/backup.sh
+# /opt/airboost/scripts/backup.sh
 
-BACKUP_DIR="/var/backups/aircache"
+BACKUP_DIR="/var/backups/airboost"
 DATE=$(date +%Y%m%d_%H%M%S)
 
 mkdir -p $BACKUP_DIR
 
 # Backup active database
-cp /var/lib/aircache/db/cache_v*.db $BACKUP_DIR/aircache_${DATE}.db
+cp /var/lib/airboost/db/cache_v*.db $BACKUP_DIR/airboost_${DATE}.db
 
 # Compress old backups
 find $BACKUP_DIR -name "*.db" -mtime +7 -exec gzip {} \;
@@ -342,13 +342,13 @@ find $BACKUP_DIR -name "*.db" -mtime +7 -exec gzip {} \;
 # Remove old compressed backups
 find $BACKUP_DIR -name "*.gz" -mtime +30 -delete
 
-echo "Backup completed: aircache_${DATE}.db"
+echo "Backup completed: airboost_${DATE}.db"
 ```
 
 ### Automated Backup (Cron)
 ```bash
 # Add to crontab
-0 2 * * * /opt/aircache/scripts/backup.sh
+0 2 * * * /opt/airboost/scripts/backup.sh
 ```
 
 ## Performance Optimization
@@ -363,11 +363,11 @@ ANALYZE;
 ### System Tuning
 ```bash
 # Increase file descriptor limits
-echo "aircache soft nofile 65536" >> /etc/security/limits.conf
-echo "aircache hard nofile 65536" >> /etc/security/limits.conf
+echo "airboost soft nofile 65536" >> /etc/security/limits.conf
+echo "airboost hard nofile 65536" >> /etc/security/limits.conf
 
 # Optimize SQLite settings
-echo "PRAGMA journal_mode=WAL;" | sqlite3 /var/lib/aircache/db/cache_v1.db
+echo "PRAGMA journal_mode=WAL;" | sqlite3 /var/lib/airboost/db/cache_v1.db
 ```
 
 ### Monitoring Performance
@@ -383,12 +383,12 @@ ss -tlnp | grep :3000
 ### File Permissions
 ```bash
 # Restrict access to configuration
-chmod 600 /opt/aircache/.env
-chown aircache:aircache /opt/aircache/.env
+chmod 600 /opt/airboost/.env
+chown airboost:airboost /opt/airboost/.env
 
 # Secure data directory
-chmod 750 /var/lib/aircache
-chmod 640 /var/lib/aircache/db/*.db
+chmod 750 /var/lib/airboost
+chmod 640 /var/lib/airboost/db/*.db
 ```
 
 ### Network Security
@@ -421,17 +421,17 @@ bun update
 
 1. **Service Won't Start**
    ```bash
-   sudo journalctl -u aircache -n 50
+   sudo journalctl -u airboost -n 50
    ```
 
 2. **High Memory Usage**
    ```bash
-   top -p $(pgrep -f aircache)
+   top -p $(pgrep -f airboost)
    ```
 
 3. **Database Corruption**
    ```bash
-   sqlite3 /var/lib/aircache/db/cache_v1.db ".schema"
+   sqlite3 /var/lib/airboost/db/cache_v1.db ".schema"
    ```
 
 4. **Network Issues**
@@ -444,13 +444,13 @@ bun update
 #### Service Recovery
 ```bash
 # Stop service
-sudo systemctl stop aircache
+sudo systemctl stop airboost
 
 # Clear corrupted databases
-sudo rm /var/lib/aircache/db/*.db
+sudo rm /var/lib/airboost/db/*.db
 
 # Restart service (will rebuild cache)
-sudo systemctl start aircache
+sudo systemctl start airboost
 ```
 
 #### Rollback Deployment
@@ -459,7 +459,7 @@ sudo systemctl start aircache
 git reset --hard HEAD~1
 
 # Restart service
-sudo systemctl restart aircache
+sudo systemctl restart airboost
 ```
 
 ## Support and Maintenance

@@ -2,11 +2,11 @@
 
 ## System Overview
 
-Aircache is a high-performance caching layer that syncs data from Airtable to local SQLite databases. It uses a dual-database strategy for zero-downtime updates and provides a REST API that's **240x faster** than direct Airtable API calls.
+Airboost is a high-performance caching layer that syncs data from Airtable to local SQLite databases. It uses a dual-database strategy for zero-downtime updates and provides a REST API that's **240x faster** than direct Airtable API calls.
 
 ```
                                     ┌─────────────────────────────────┐
-                                    │          Aircache               │
+                                    │          Airboost               │
 ┌─────────────┐                     │  ┌─────────────────────────┐   │
 │   Client    │ ───── REST API ──── │  │       Elysia Server     │   │
 │ Application │                     │  └───────────┬─────────────┘   │
@@ -57,7 +57,7 @@ Aircache is a high-performance caching layer that syncs data from Airtable to lo
 
 ## Dual-Database Strategy
 
-The key innovation in Aircache is the dual-database strategy that enables zero-downtime updates.
+The key innovation in Airboost is the dual-database strategy that enables zero-downtime updates.
 
 ### How It Works
 

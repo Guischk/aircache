@@ -1,6 +1,6 @@
 # SQLite Backend
 
-Aircache uses SQLite as its caching backend, providing a simple, performant, and cost-effective solution.
+Airboost uses SQLite as its caching backend, providing a simple, performant, and cost-effective solution.
 
 ## Why SQLite?
 
@@ -18,12 +18,12 @@ Aircache uses SQLite as its caching backend, providing a simple, performant, and
 
 ### Dual Database System
 
-Aircache maintains two SQLite databases:
+Airboost maintains two SQLite databases:
 
 ```
 data/
-├── aircache-v1.sqlite    # Database version 1
-├── aircache-v2.sqlite    # Database version 2
+├── airboost-v1.sqlite    # Database version 1
+├── airboost-v2.sqlite    # Database version 2
 └── metadata.sqlite       # System metadata
 ```
 
@@ -148,8 +148,8 @@ UPDATE metadata SET value = '2' WHERE key = 'active_version';
 ### Database Paths
 
 ```bash
-SQLITE_V1_PATH=data/aircache-v1.sqlite
-SQLITE_V2_PATH=data/aircache-v2.sqlite
+SQLITE_V1_PATH=data/airboost-v1.sqlite
+SQLITE_V2_PATH=data/airboost-v2.sqlite
 SQLITE_METADATA_PATH=data/metadata.sqlite
 ```
 
@@ -165,7 +165,7 @@ STORAGE_PATH=./data/attachments
 
 ```bash
 # Check database integrity
-sqlite3 data/aircache-v1.sqlite "PRAGMA integrity_check"
+sqlite3 data/airboost-v1.sqlite "PRAGMA integrity_check"
 
 # Check database size
 ls -lh data/*.sqlite
@@ -175,20 +175,20 @@ ls -lh data/*.sqlite
 
 ```bash
 # Vacuum database (reclaim space)
-sqlite3 data/aircache-v1.sqlite "VACUUM"
+sqlite3 data/airboost-v1.sqlite "VACUUM"
 
 # Update statistics
-sqlite3 data/aircache-v1.sqlite "ANALYZE"
+sqlite3 data/airboost-v1.sqlite "ANALYZE"
 ```
 
 ### Backup
 
 ```bash
 # Simple file copy (when service is stopped)
-cp data/aircache-v1.sqlite backup/
+cp data/airboost-v1.sqlite backup/
 
 # Hot backup (with service running)
-sqlite3 data/aircache-v1.sqlite ".backup backup/aircache.sqlite"
+sqlite3 data/airboost-v1.sqlite ".backup backup/airboost.sqlite"
 ```
 
 ## Troubleshooting
@@ -200,7 +200,7 @@ Error: SQLITE_BUSY: database is locked
 ```
 
 **Cause**: Concurrent write operations
-**Solution**: Aircache handles this with retry logic; if persistent, restart the service
+**Solution**: Airboost handles this with retry logic; if persistent, restart the service
 
 ### Database Corrupted
 
@@ -214,7 +214,7 @@ Error: database disk image is malformed
 3. Restart (will rebuild from Airtable)
 
 ```bash
-rm data/aircache-v1.sqlite
+rm data/airboost-v1.sqlite
 bun run start
 ```
 

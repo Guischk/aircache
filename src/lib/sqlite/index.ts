@@ -51,8 +51,8 @@ class SQLiteService {
 	}
 
 	constructor(
-		v1Path: string = process.env.SQLITE_V1_PATH || "data/aircache-v1.sqlite",
-		v2Path: string = process.env.SQLITE_V2_PATH || "data/aircache-v2.sqlite",
+		v1Path: string = process.env.SQLITE_V1_PATH || "data/airboost-v1.sqlite",
+		v2Path: string = process.env.SQLITE_V2_PATH || "data/airboost-v2.sqlite",
 		metadataPath: string = process.env.SQLITE_METADATA_PATH || "data/metadata.sqlite",
 	) {
 		this.v1Path = v1Path;
@@ -384,7 +384,7 @@ class SQLiteService {
 	 */
 	async setRecordsBatch(
 		tableNorm: string,
-		records: Array<{ id: string; fields: any }>,
+		records: ReadonlyArray<{ id: string; fields: any }>,
 		useInactive = false,
 	): Promise<void> {
 		const db = useInactive ? this.inactiveDb : this.activeDb;
@@ -847,13 +847,30 @@ class SQLiteService {
 		const db = this.inactiveDb || this.activeDb;
 		if (!db) throw new Error("Database not connected");
 
-		const stmt = db.prepare(`
-      UPDATE attachments
-      SET local_path = ?, downloaded_at = CURRENT_TIMESTAMP, size = COALESCE(?, size)
-      WHERE id = ?
-    `);
+		// Try both databases to be safe? Or just use the one where it exists?
+		// Better to update where the record exists.
+		const checkActive = this.activeDb?.prepare("SELECT 1 FROM attachments WHERE id = ?").get(id);
+		const checkInactive = this.inactiveDb
+			?.prepare("SELECT 1 FROM attachments WHERE id = ?")
+			.get(id);
 
-		stmt.run(localPath, size ?? null, id);
+		const dbsToUpdate = [];
+		if (checkActive && this.activeDb) dbsToUpdate.push(this.activeDb);
+		if (checkInactive && this.inactiveDb) dbsToUpdate.push(this.inactiveDb);
+
+		if (dbsToUpdate.length === 0) {
+			logger.warn(`Attachment ${id} not found in any connected database`);
+			return;
+		}
+
+		for (const targetDb of dbsToUpdate) {
+			const stmt = targetDb.prepare(`
+        UPDATE attachments
+        SET local_path = ?, downloaded_at = CURRENT_TIMESTAMP, size = COALESCE(?, size)
+        WHERE id = ?
+      `);
+			stmt.run(localPath, size ?? null, id);
+		}
 	}
 
 	/**

@@ -27,7 +27,7 @@ export function getServerConfig(): ServerConfig {
 export async function startServer(overrideConfig?: Partial<ServerConfig>): Promise<void> {
 	const fullConfig = { ...getServerConfig(), ...overrideConfig };
 
-	logger.start("Starting Aircache service (SQLite)");
+	logger.start("Starting Airboost service (SQLite)");
 	logger.info("Configuration", {
 		port: fullConfig.port,
 		syncMode: fullConfig.syncMode,
@@ -107,7 +107,7 @@ async function startSQLiteServer(serverConfig: ServerConfig): Promise<void> {
 
 	logger.success("SQLite service fully started");
 	logger.info("Storage", {
-		databases: "data/aircache-v1.sqlite, data/aircache-v2.sqlite",
+		databases: "data/airboost-v1.sqlite, data/airboost-v2.sqlite",
 		attachments: process.env.STORAGE_PATH || "./data/attachments",
 	});
 

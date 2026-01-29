@@ -2,7 +2,7 @@
 
 ## Overview
 
-Aircache uses Bun's built-in test runner for unit tests, integration tests, and performance benchmarks.
+Airboost uses Bun's built-in test runner for unit tests, integration tests, and performance benchmarks.
 
 ## Running Tests
 

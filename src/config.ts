@@ -1,5 +1,5 @@
 /**
- * Configuration file for Aircache
+ * Configuration file for Airboost
  * Simple configuration with environment variables
  */
 
@@ -69,7 +69,7 @@ export function loadConfig(): Config {
 	if (syncMode === "webhook" && !webhookPublicUrl) {
 		throw new Error(
 			"WEBHOOK_PUBLIC_URL is required when SYNC_MODE=webhook.\n" +
-				"Example: WEBHOOK_PUBLIC_URL=https://aircache.yourcompany.com",
+				"Example: WEBHOOK_PUBLIC_URL=https://airboost.yourcompany.com",
 		);
 	}
 
